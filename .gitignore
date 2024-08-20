@@ -1,0 +1,8 @@
+.env
+.venv
+exports/
+cache/
+*.png
+dev-*
+*.pyc
+pandasai.log
