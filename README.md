@@ -1,5 +1,5 @@
 # ChatAnalysis
-Chat with your csv/tsv data with ChatGPT(more model on the way)
+Chat with your csv/tsv data with ChatGPT(more models on the way)
 
 # Run the app locally
 After creating a virtual env:
