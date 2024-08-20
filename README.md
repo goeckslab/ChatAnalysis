@@ -1,8 +1,13 @@
 # ChatAnalysis
-Chat with your csv/tsv data with ChatGPT(more models on the way)
+Chat with your CSV/TSV data using OpenAI models (more models will be supported soon)
 
 # Run the app locally
-After creating a virtual env:
+Created a virtual env:
+```
+python -m venv .env
+source .env/bin/activate
+```
+Run the app 
 ```
 pip install -r requirements.txt
 streamlit run chat_analysis.py
