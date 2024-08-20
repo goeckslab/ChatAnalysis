@@ -8,6 +8,7 @@ from pandasai import Agent
 from pandasai.llm import OpenAI
 from pandasai.responses.streamlit_response import StreamlitResponse
 import config
+from helper import detect_image_path
 
 class ChatAnalysisApp:
     def __init__(self):
@@ -53,8 +54,30 @@ class ChatAnalysisApp:
             })
         elif isinstance(result, str) and os.path.exists(result):
             self.display_image_result(result, agent)
+        elif isinstance(result, str) and (image_path := detect_image_path(result)):
+            '''
+             for edge case: 
+             The dataset contains 10 years of data with 12 months recorded. 
+             The average monthly values are plotted in 
+             '/mount/src/chatanalysis/temp/f0a55a49-b0fa-43d9-8e41-2098421a1544.png'.
+            '''
+            # image_path = detect_image_path(result)
+            self.display_image_text_result(result, image_path, agent)
         else:
             self.display_text_result(result, agent)
+
+    def display_image_text_result(self, result, image_path, agent):
+        with st.expander("Executed code"):
+            st.code(body=agent.last_code_executed, line_numbers=True)
+        image = self.encode_image_to_base64(image_path)
+        st.image(self.decode_base64_to_image(image))
+        st.session_state.messages.append({
+            "role": "assistant", 
+            "image": image, 
+            "content": result,
+            "code_excuted": agent.last_code_executed
+        })
+        os.remove(image_path)
 
     def display_image_result(self, result, agent):
         with st.expander("Executed code"):
@@ -81,7 +104,6 @@ class ChatAnalysisApp:
     def create_agent(self):
         self.agent = Agent(self.df, config={
             "llm": OpenAI(api_token=self.openai_api_key, model=self.model),
-            "response_parser": StreamlitResponse,
             "save_charts": True,
             "save_charts_path": self.user_defined_path,
         })
@@ -97,7 +119,12 @@ class ChatAnalysisApp:
 
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
-                if "image" in message:
+                if "image" in message and "content" in message:
+                    with st.expander("Executed code"):
+                        st.code(body=message["code_excuted"], line_numbers=True)
+                    st.image(self.decode_base64_to_image(message["image"]))
+                    st.write(message["content"])
+                elif "image" in message:
                     with st.expander("Executed code"):
                         st.code(body=message["code_excuted"], line_numbers=True)
                     st.image(self.decode_base64_to_image(message["image"]))
@@ -110,6 +137,7 @@ class ChatAnalysisApp:
             prompt = self.handle_user_input(prompt)
             with st.chat_message("assistant"):
                 result = self.agent.chat(prompt)
+                print(result)
                 self.process_result(result, self.agent)
 
 
