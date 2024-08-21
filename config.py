@@ -52,6 +52,9 @@ def configure_llm_options():
         return llm_choice, None, None
     else:
         bamboollm_key = st.sidebar.text_input(label="Your BambooLLM API Key:", type="password")
+        if not bamboollm_key:
+            st.error("BambooLLM API key not set for your chat")
+            st.stop()
         return "BambooLLM", None, bamboollm_key
 
         
