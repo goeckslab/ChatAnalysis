@@ -2,11 +2,22 @@ import streamlit as st
 import openai
 
 supported_chat_models = [
-    "gpt-4o-mini", "gpt-3.5-turbo", "gpt-3.5-turbo-0125", 
-    "gpt-3.5-turbo-1106", "gpt-3.5-turbo-0613", "gpt-3.5-turbo-16k", 
-    "gpt-3.5-turbo-16k-0613", "gpt-4", "gpt-4-0125-preview", 
-    "gpt-4-1106-preview", "gpt-4-0613", "gpt-4-32k", "gpt-4-32k-0613", 
-    "gpt-4-turbo-preview", "gpt-4o", "gpt-4o-2024-05-13", 
+    "gpt-4o-mini", 
+    "gpt-3.5-turbo",
+    "gpt-3.5-turbo-0125", 
+    "gpt-3.5-turbo-1106", 
+    "gpt-3.5-turbo-0613", 
+    "gpt-3.5-turbo-16k", 
+    "gpt-3.5-turbo-16k-0613", 
+    "gpt-4", 
+    "gpt-4-0125-preview", 
+    "gpt-4-1106-preview", 
+    "gpt-4-0613", 
+    "gpt-4-32k", 
+    "gpt-4-32k-0613", 
+    "gpt-4-turbo-preview", 
+    "gpt-4o", 
+    "gpt-4o-2024-05-13", 
     "gpt-4o-mini-2024-07-18",
 ]
 
@@ -28,3 +39,20 @@ def get_openai_key():
 
     model = st.sidebar.selectbox(label="Select the model you want", options=supported_chat_models)
     return model, openai_api_key
+
+def configure_llm_options():
+    available_options = ["BambooLLM", "OpenAI", "Your BambooLLM API Key"]
+    llm_choice = st.sidebar.radio(
+        label="Select LLM for analysis:", 
+        options=available_options)
+    if llm_choice == "OpenAI":
+        model, openai_api_key = get_openai_key()
+        return llm_choice, model, openai_api_key
+    elif llm_choice == "BambooLLM":
+        return llm_choice, None, None
+    else:
+        bamboollm_key = st.sidebar.text_input(label="Your BambooLLM API Key:", type="password")
+        return "BambooLLM", None, bamboollm_key
+
+        
+
