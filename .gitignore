@@ -6,3 +6,4 @@ cache/
 dev-*
 *.pyc
 pandasai.log
+.streamlit/secrets.toml

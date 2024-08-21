@@ -5,15 +5,25 @@ import base64
 import io
 from PIL import Image
 from pandasai import Agent
-from pandasai.llm import OpenAI
+from pandasai.llm import OpenAI, BambooLLM
 from pandasai.responses.streamlit_response import StreamlitResponse
 import config
 from helper import detect_image_path
+from pandasai.exceptions import PandasAIApiCallError
 
 class ChatAnalysisApp:
     def __init__(self):
         self.user_defined_path = os.path.join(os.getcwd(), 'temp')
-        self.model, self.openai_api_key = config.get_openai_key()
+        llm_choice, model, api_key_user = config.configure_llm_options()
+        if llm_choice == "OpenAI":
+            self.model = model
+            self.openai_api_key = api_key_user
+        elif llm_choice == "BambooLLM":
+            self.model = "BambooLLM"
+            if api_key_user:
+                self.api_key = api_key_user
+            else:
+                self.api_key = st.secrets.pandasai.api_key
         self.df = None
         self.agent = None  # Initialize the agent as None
         self.initialize_session_state()
@@ -102,8 +112,12 @@ class ChatAnalysisApp:
         st.write(result)
 
     def create_agent(self):
+        if self.model == "BambooLLM":
+            llm = BambooLLM(api_key=self.api_key)
+        elif self.model == "OpenAI":
+            llm = OpenAI(api_token=self.openai_api_key, model=self.model)
         self.agent = Agent(self.df, config={
-            "llm": OpenAI(api_token=self.openai_api_key, model=self.model),
+            "llm": llm,
             "save_charts": True,
             "save_charts_path": self.user_defined_path,
         })
@@ -130,13 +144,23 @@ class ChatAnalysisApp:
                     st.image(self.decode_base64_to_image(message["image"]))
                 elif "code_generated" in message:
                     st.code(body=message["code_generated"], line_numbers=True)
-                else:
+                elif message["role"] == "assistant":
+                    with st.expander("Executed code"):
+                        st.code(body=message["code_excuted"], line_numbers=True)
                     st.write(message["content"])
+                else:
+                    st.markdown(message["content"])
 
         if self.agent and (prompt := st.chat_input("What is up?")):  # Check if agent is created
             prompt = self.handle_user_input(prompt)
             with st.chat_message("assistant"):
-                result = self.agent.chat(prompt)
+                result = None
+                try:
+                    result = self.agent.chat(prompt)
+                except PandasAIApiCallError as e:
+                    st.write(f"The BambooLLM free tier has a limit of 100 API calls per month. \
+                            We have reached the limit. \
+                            Please use the OpenAI model to continue the analysis.")
                 print(result)
                 self.process_result(result, self.agent)
 
