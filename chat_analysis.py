@@ -124,6 +124,7 @@ class ChatAnalysisApp:
 
     def run(self):
         st.title("ChatAnalysis")
+        st.text("You can get your free API key for BambooLLM signing up at https://pandabi.ai")
 
         csv_file = st.file_uploader("Upload your csv file", type=["csv", "tsv"])
         if csv_file is not None:
