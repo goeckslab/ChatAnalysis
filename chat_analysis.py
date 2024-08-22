@@ -156,7 +156,6 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             csv_file = st.file_uploader("Upload your csv file", type=["csv", "tsv"])
             if csv_file is not None:
                 self.df = self.load_data(csv_file)
-                print(self.df)
                 self.df_loaded = True
         
         if self.df_loaded:
