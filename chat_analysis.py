@@ -10,28 +10,52 @@ from pandasai.responses.streamlit_response import StreamlitResponse
 import config
 from helper import detect_image_path
 from pandasai.exceptions import PandasAIApiCallError
+import sys
 
 class ChatAnalysisApp:
-    def __init__(self):
+    '''
+a bug in resposeparser:
+{'summary': {'type': 'string', 'value': 'The dataset has 10 rows and 13 columns. Columns are: \ufeffYear, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec.'}, 'plot': {'type': 'plot', 'value': '/Users/qjunhao/Documents/GitHub/ChatAnalysis/temp/4ede6325-ae1c-40a3-a098-4675eda2f1ee.png'}}
+The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec.
+'''
+          
+    def __init__(self, csv_file=None, openai_api_key=None):
+        print("csv_file and openai_api_key")
+        print(csv_file)
+        print(openai_api_key)
         self.user_defined_path = os.path.join(os.getcwd(), 'temp')
-        llm_choice, model, api_key_user = config.configure_llm_options()
-        if llm_choice == "OpenAI":
-            self.model = model
-            self.openai_api_key = api_key_user
-        elif llm_choice == "BambooLLM":
-            self.model = "BambooLLM"
-            if api_key_user:
-                self.api_key = api_key_user
-            else:
-                self.api_key = st.secrets.pandasai.api_key
+        self.llm_choice = None
+        if openai_api_key:
+            ## to-do: add model choice
+            self.llm_choice = "OpenAI"
+            self.openai_api_key = openai_api_key
+            self.model = "gpt-4o-mini"
+        else:
+            llm_choice, model, api_key_user = config.configure_llm_options()
+            if llm_choice == "OpenAI":
+                self.llm_choice = llm_choice
+                self.model = model
+                self.openai_api_key = api_key_user
+            elif llm_choice == "BambooLLM":
+                self.llm_choice = llm_choice
+                self.model = "BambooLLM"
+                if api_key_user:
+                    self.api_key = api_key_user
+                else:
+                    self.api_key = st.secrets.pandasai.api_key
+        self.df_loaded = False
         self.df = None
         self.agent = None  # Initialize the agent as None
         self.initialize_session_state()
 
+        if csv_file:
+            self.df = self.load_data(csv_file)
+            self.df_loaded = True
+
     @staticmethod
     @st.cache_data
     def load_data(csv_file):
-        return pd.read_csv(csv_file, sep=None, engine='python')
+        return pd.read_csv(csv_file)
 
     @staticmethod
     def encode_image_to_base64(img_path):
@@ -112,10 +136,12 @@ class ChatAnalysisApp:
         st.write(result)
 
     def create_agent(self):
-        if self.model == "BambooLLM":
+        llm = None
+        if self.llm_choice == "BambooLLM":
             llm = BambooLLM(api_key=self.api_key)
-        elif self.model == "OpenAI":
+        elif self.llm_choice == "OpenAI":
             llm = OpenAI(api_token=self.openai_api_key, model=self.model)
+        print(self.llm_choice)
         self.agent = Agent(self.df, config={
             "llm": llm,
             "save_charts": True,
@@ -126,11 +152,16 @@ class ChatAnalysisApp:
         st.title("ChatAnalysis")
         st.text("You can get your free API key for BambooLLM signing up at https://pandabi.ai")
 
-        csv_file = st.file_uploader("Upload your csv file", type=["csv", "tsv"])
-        if csv_file is not None:
-            self.df = self.load_data(csv_file)
+        if not self.df_loaded:
+            csv_file = st.file_uploader("Upload your csv file", type=["csv", "tsv"])
+            if csv_file is not None:
+                self.df = self.load_data(csv_file)
+                self.df_loaded = True
+        
+        if self.df_loaded:
             st.dataframe(self.df.head(5))
-            self.create_agent()  # Create the agent only when df is available
+            self.create_agent()
+
 
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
@@ -167,10 +198,19 @@ class ChatAnalysisApp:
 
 
 if __name__ == "__main__":
-    app = ChatAnalysisApp()
+    # parser = argparse.ArgumentParser(description="Run ChatAnalysis as a Streamlit app.")
+    # parser.add_argument("--csv", type=str, help="Path to the CSV/TSV file to be loaded.")
+    # parser.add_argument("--openai_api_key", type=str, help="OpenAI API key (optional).")
+    # args = parser.parse_args()
+    print(sys.argv)
+    #not sure in docker, at start, the csv_file in sys.argv[4], the openai_api_key in sys.argv[5]
+    # the argv was = ['something unknown', 'streamlit', 'run', 'chat_analysis.py', '*.csv', 'sk-xxxx']
+    csv_file = sys.argv[1] if len(sys.argv) > 1 else None
+    openai_api_key = sys.argv[2] if len(sys.argv) > 2 else None
+
+    app = ChatAnalysisApp(csv_file, openai_api_key)
     app.run()
             
-
-            
+  
             
         
