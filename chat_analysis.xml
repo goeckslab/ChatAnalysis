@@ -1,0 +1,45 @@
+<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.1">
+    <requirements>
+        <container type="docker">
+            quay.io/goeckslab/chatanalysis:latest
+        </container>
+    </requirements>
+    <entry_points>
+        <entry_point name="Chat with $input_csv.element_identifier" requires_domain="True">
+            <port>
+                8501
+            </port>
+            <url>
+                /
+            </url>
+        </entry_point>
+    </entry_points>
+    <command>
+        <![CDATA[
+        echo "Starting Streamlit" &&
+        echo "Script executed from: `pwd`" &&
+        cd /ChatAnalysis &&
+        streamlit run chat_analysis.py 
+        #if $input_csv
+        $input_csv
+        #end if
+        #if $openai_api_key
+        $openai_api_key
+        #end if
+        ]]>
+    </command>
+    <inputs>
+        <param name="input_csv"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="true"/>
+        <param name="openai_api_key" label="Your OpenAI API Key(if you want to provide)" type="text" optional="true" />
+    </inputs>
+    <outputs>
+        <data name="outfile" format="txt"/>
+    </outputs>
+    <tests>
+    </tests>
+    <help>
+        Chat with your data 
+    </help>
+</tool>
+
+

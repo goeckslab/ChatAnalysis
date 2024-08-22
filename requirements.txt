@@ -2,3 +2,4 @@ pandasai == 2.2.14
 pandas == 1.5.3
 numpy == 1.23.0
 pyyaml
+streamlit
