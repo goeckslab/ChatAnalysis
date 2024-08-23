@@ -55,7 +55,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
     @staticmethod
     @st.cache_data
     def load_data(csv_file):
-        return pd.read_csv(csv_file)
+        return pd.read_csv(csv_file, sep=None, engine='python')
 
     @staticmethod
     def encode_image_to_base64(img_path):
