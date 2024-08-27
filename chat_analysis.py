@@ -19,10 +19,7 @@ a bug in resposeparser:
 The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec.
 '''
           
-    def __init__(self, csv_file=None, openai_api_key=None):
-        print("csv_file and openai_api_key")
-        print(csv_file)
-        print(openai_api_key)
+    def __init__(self, csv_file=None, openai_api_key=None, bamboollm_key_app=None):
         self.user_defined_path = os.path.join(os.getcwd(), 'temp')
         self.llm_choice = None
         if openai_api_key:
@@ -42,7 +39,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 if api_key_user:
                     self.api_key = api_key_user
                 else:
-                    self.api_key = st.secrets.pandasai.api_key
+                    self.api_key = bamboollm_key_app
         self.df_loaded = False
         self.df = None
         self.agent = None  # Initialize the agent as None
@@ -146,6 +143,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             "llm": llm,
             "save_charts": True,
             "save_charts_path": self.user_defined_path,
+            "custom_whitelisted_dependencies": ["pycaret"]
         })
 
     def run(self):
@@ -205,10 +203,18 @@ if __name__ == "__main__":
     print(sys.argv)
     #not sure in docker, at start, the csv_file in sys.argv[4], the openai_api_key in sys.argv[5]
     # the argv was = ['something unknown', 'streamlit', 'run', 'chat_analysis.py', '*.csv', 'sk-xxxx']
-    csv_file = sys.argv[1] if len(sys.argv) > 1 else None
-    openai_api_key = sys.argv[2] if len(sys.argv) > 2 else None
+    bamboollm_key_app_file = sys.argv[1] if len(sys.argv) > 1 else None
+    csv_file = sys.argv[2] if len(sys.argv) > 2 else None
+    openai_api_key_file = sys.argv[3] if len(sys.argv) > 3 else None
 
-    app = ChatAnalysisApp(csv_file, openai_api_key)
+    openai_api_key = None
+    bamboollm_key_app = None
+    with open(openai_api_key_file, 'r') as f:
+        openai_api_key = f.read().strip()
+    with open(bamboollm_key_app_file, 'r') as f:
+        bamboollm_key_app = f.read().strip()
+
+    app = ChatAnalysisApp(csv_file, openai_api_key, bamboollm_key_app)
     app.run()
             
   

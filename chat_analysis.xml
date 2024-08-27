@@ -19,18 +19,23 @@
         echo "Starting Streamlit" &&
         echo "Script executed from: `pwd`" &&
         cd /ChatAnalysis &&
-        streamlit run chat_analysis.py 
+        streamlit run chat_analysis.py
+         $__tool_directory__/bamboo_api_key.txt 
         #if $input_csv
         $input_csv
         #end if
-        #if $openai_api_key
-        $openai_api_key
+        #if $openai_api_key_file
+        $openai_api_key_file
         #end if
         ]]>
     </command>
+    <configfiles>
+        <configfile name="openai_api_key_file"><![CDATA[
+            $__user__.extra_preferences.get('chatapt|api_key')
+        ]]></configfile>
+    </configfiles>
     <inputs>
         <param name="input_csv"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="true"/>
-        <param name="openai_api_key" label="Your OpenAI API Key(if you want to provide)" type="text" optional="true" />
     </inputs>
     <outputs>
         <data name="outfile" format="txt"/>
