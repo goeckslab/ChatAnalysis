@@ -2,6 +2,8 @@ FROM python:3.9-slim
 
 WORKDIR /ChatAnalysis
 
+RUN chmod -R 777 /ChatAnalysis
+
 COPY . .
 
 # Install any needed packages specified in requirements.txt

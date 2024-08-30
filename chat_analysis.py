@@ -143,7 +143,8 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             "llm": llm,
             "save_charts": True,
             "save_charts_path": self.user_defined_path,
-            "custom_whitelisted_dependencies": ["pycaret"]
+            "custom_whitelisted_dependencies": ["pycaret"],
+            "save_logs": False
         })
 
     def run(self):
@@ -209,10 +210,12 @@ if __name__ == "__main__":
 
     openai_api_key = None
     bamboollm_key_app = None
-    with open(openai_api_key_file, 'r') as f:
-        openai_api_key = f.read().strip()
-    with open(bamboollm_key_app_file, 'r') as f:
-        bamboollm_key_app = f.read().strip()
+    if openai_api_key_file:
+        with open(openai_api_key_file, 'r') as f:
+            openai_api_key = f.read().strip()
+    if bamboollm_key_app_file:
+        with open(bamboollm_key_app_file, 'r') as f:
+            bamboollm_key_app = f.read().strip()
 
     app = ChatAnalysisApp(csv_file, openai_api_key, bamboollm_key_app)
     app.run()
