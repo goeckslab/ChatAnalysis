@@ -12,3 +12,4 @@ openai_key.txt
 *.tsv
 *.csv
 *.log
+groq_api_key.txt

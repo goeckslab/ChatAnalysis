@@ -21,8 +21,9 @@ supported_chat_models = [
     "gpt-4o-mini-2024-07-18",
 ]
 
-def get_openai_key():
-    openai_api_key = st.sidebar.text_input(label="Your OpenAI API Key:", type="password")
+def get_openai_key(openai_api_key):
+    if not openai_api_key:
+        openai_api_key = st.sidebar.text_input(label="Your OpenAI API Key:", type="password")
     if not openai_api_key:
         st.error("OpenAI API key not set for your chat")
         st.stop()
@@ -40,13 +41,18 @@ def get_openai_key():
     model = st.sidebar.selectbox(label="Select the model you want", options=supported_chat_models)
     return model, openai_api_key
 
-def configure_llm_options():
-    available_options = ["BambooLLM", "OpenAI", "Your BambooLLM API Key"]
+def configure_llm_options(openai_api_key):
+    available_options = ["Groq", "BambooLLM", "OpenAI", "Your BambooLLM API Key"]
+    default_index = 0 if not openai_api_key else 2
     llm_choice = st.sidebar.radio(
         label="Select LLM for analysis:", 
-        options=available_options)
-    if llm_choice == "OpenAI":
-        model, openai_api_key = get_openai_key()
+        options=available_options, 
+        index=default_index)
+
+    if llm_choice == "Groq":
+        return llm_choice, None, None
+    elif llm_choice == "OpenAI":
+        model, openai_api_key = get_openai_key(openai_api_key)
         return llm_choice, model, openai_api_key
     elif llm_choice == "BambooLLM":
         return llm_choice, None, None
@@ -56,6 +62,25 @@ def configure_llm_options():
             st.error("BambooLLM API key not set for your chat")
             st.stop()
         return "BambooLLM", None, bamboollm_key
+
+def display_example_questions():
+    
+    with st.sidebar:
+        st.divider()
+        st.markdown("## Example Questions")
+        st.write("Can you tell me something interesting about the dataset?")
+        st.write("Can you provide a summary of the dataset?")
+        st.write("Are there any missing values in the dataset? If so, which columns have them?")
+        st.write("Can you create a histogram for [a specific column]?")
+        st.write("Can you provide a scatterplot for [two specific columns]?")
+
+    with st.sidebar:
+        st.divider()
+        st.markdown("## Important Notes")
+        st.markdown("#### The tool can make mistakes!")
+        st.markdown("#### The Groq model is llama3-groq-70b-8192-tool-use-preview")
+        st.markdown("#### If the answers are not good from Groq and BambooLLM, you could consider OpenAI.")
+
 
         
 

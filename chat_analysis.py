@@ -11,6 +11,9 @@ import config
 from helper import detect_image_path
 from pandasai.exceptions import PandasAIApiCallError
 import sys
+from itables.streamlit import interactive_table
+from st_aggrid import AgGrid
+from langchain_groq.chat_models import ChatGroq
 
 class ChatAnalysisApp:
     '''
@@ -19,27 +22,33 @@ a bug in resposeparser:
 The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec.
 '''
           
-    def __init__(self, csv_file=None, openai_api_key=None, bamboollm_key_app=None):
+    def __init__(self, csv_file=None, openai_api_key=None, bamboollm_key_app=None, groq_api_key=None):
         self.user_defined_path = os.path.join(os.getcwd(), 'temp')
         self.llm_choice = None
-        if openai_api_key:
-            ## to-do: add model choice
-            self.llm_choice = "OpenAI"
-            self.openai_api_key = openai_api_key
-            self.model = "gpt-4o-mini"
-        else:
-            llm_choice, model, api_key_user = config.configure_llm_options()
-            if llm_choice == "OpenAI":
-                self.llm_choice = llm_choice
-                self.model = model
-                self.openai_api_key = api_key_user
-            elif llm_choice == "BambooLLM":
-                self.llm_choice = llm_choice
-                self.model = "BambooLLM"
-                if api_key_user:
-                    self.api_key = api_key_user
-                else:
-                    self.api_key = bamboollm_key_app
+        # if openai_api_key:
+        #     ## to-do: add model choice
+        #     self.llm_choice = "OpenAI"
+        #     self.openai_api_key = openai_api_key
+        #     self.model = "gpt-4o-mini"
+        # else:
+        
+        llm_choice, model, api_key_user = config.configure_llm_options(openai_api_key)
+        if llm_choice == "OpenAI":
+            self.llm_choice = llm_choice
+            self.model = model
+            self.openai_api_key = api_key_user
+        elif llm_choice == "BambooLLM":
+            self.llm_choice = llm_choice
+            self.model = "BambooLLM"
+            if api_key_user:
+                self.api_key = api_key_user
+            elif bamboollm_key_app:
+                self.api_key = bamboollm_key_app
+        elif llm_choice == "Groq":
+            self.llm_choice = llm_choice
+            self.model = "llama3-groq-70b-8192-tool-use-preview"
+            self.api_key = groq_api_key
+            
         self.df_loaded = False
         self.df = None
         self.agent = None  # Initialize the agent as None
@@ -73,9 +82,8 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        return prompt
-
     def process_result(self, result, agent):
+        print(f"result:{result}")
         if isinstance(result, str) and "Generated code includes import of" in result and "which is not in whitelist" in result:
             st.code(body=agent.last_code_generated, line_numbers=True)
             st.session_state.messages.append({
@@ -84,16 +92,15 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 "code_generated": agent.last_code_generated
             })
         elif isinstance(result, str) and os.path.exists(result):
+            print("only image")
             self.display_image_result(result, agent)
         elif isinstance(result, str) and (image_path := detect_image_path(result)):
-            '''
-             for edge case: 
-             The dataset contains 10 years of data with 12 months recorded. 
-             The average monthly values are plotted in 
-             '/mount/src/chatanalysis/temp/f0a55a49-b0fa-43d9-8e41-2098421a1544.png'.
-            '''
             # image_path = detect_image_path(result)
-            self.display_image_text_result(result, image_path, agent)
+            print("image and text")
+            if "No such file or directory" in result:
+                st.write(result)
+            else:
+                self.display_image_text_result(result, image_path, agent)
         else:
             self.display_text_result(result, agent)
 
@@ -138,7 +145,8 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             llm = BambooLLM(api_key=self.api_key)
         elif self.llm_choice == "OpenAI":
             llm = OpenAI(api_token=self.openai_api_key, model=self.model)
-        print(self.llm_choice)
+        elif self.llm_choice == "Groq":
+            llm = ChatGroq(api_key=self.api_key, model_name=self.model)
         self.agent = Agent(self.df, config={
             "llm": llm,
             "save_charts": True,
@@ -149,8 +157,9 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
 
     def run(self):
         st.title("ChatAnalysis")
-        st.text("You can get your free API key for BambooLLM signing up at https://pandabi.ai")
-
+        st.write("You can get your free API key for BambooLLM or Groq signing up at https://pandas-ai.com or https://groq.com")
+        config.display_example_questions()
+        
         if not self.df_loaded:
             csv_file = st.file_uploader("Upload your csv file", type=["csv", "tsv"])
             if csv_file is not None:
@@ -158,9 +167,8 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 self.df_loaded = True
         
         if self.df_loaded:
-            st.dataframe(self.df.head(5))
+            AgGrid(self.df.head(15), height=220)
             self.create_agent()
-
 
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
@@ -182,12 +190,13 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 else:
                     st.markdown(message["content"])
 
-        if self.agent and (prompt := st.chat_input("What is up?")):  # Check if agent is created
-            prompt = self.handle_user_input(prompt)
+        if self.agent and (prompt := st.chat_input("Ask a question about your data (You can find question examples in the sidebar).")):  # Check if agent is created
+            self.handle_user_input(prompt)
             with st.chat_message("assistant"):
                 result = None
                 try:
-                    result = self.agent.chat(prompt)
+                    with st.spinner('Generating response...'):
+                        result = self.agent.chat(prompt)
                 except PandasAIApiCallError as e:
                     st.write(f"The BambooLLM free tier has a limit of 100 API calls per month. \
                             We have reached the limit. \
@@ -197,27 +206,28 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
 
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser(description="Run ChatAnalysis as a Streamlit app.")
-    # parser.add_argument("--csv", type=str, help="Path to the CSV/TSV file to be loaded.")
-    # parser.add_argument("--openai_api_key", type=str, help="OpenAI API key (optional).")
-    # args = parser.parse_args()
     print(sys.argv)
     #not sure in docker, at start, the csv_file in sys.argv[4], the openai_api_key in sys.argv[5]
     # the argv was = ['something unknown', 'streamlit', 'run', 'chat_analysis.py', '*.csv', 'sk-xxxx']
     bamboollm_key_app_file = sys.argv[1] if len(sys.argv) > 1 else None
     csv_file = sys.argv[2] if len(sys.argv) > 2 else None
     openai_api_key_file = sys.argv[3] if len(sys.argv) > 3 else None
+    groq_api_key_file = sys.argv[4] if len(sys.argv) > 4 else None
 
     openai_api_key = None
     bamboollm_key_app = None
+    groq_api_key = None
     if openai_api_key_file:
         with open(openai_api_key_file, 'r') as f:
             openai_api_key = f.read().strip()
     if bamboollm_key_app_file:
         with open(bamboollm_key_app_file, 'r') as f:
             bamboollm_key_app = f.read().strip()
+    if groq_api_key_file:
+        with open(groq_api_key_file, 'r') as f:
+            groq_api_key = f.read().strip()
 
-    app = ChatAnalysisApp(csv_file, openai_api_key, bamboollm_key_app)
+    app = ChatAnalysisApp(csv_file, openai_api_key, bamboollm_key_app, groq_api_key)
     app.run()
             
   
