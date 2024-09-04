@@ -11,7 +11,6 @@ import config
 from helper import detect_image_path
 from pandasai.exceptions import PandasAIApiCallError
 import sys
-from itables.streamlit import interactive_table
 from st_aggrid import AgGrid
 from langchain_groq.chat_models import ChatGroq
 
@@ -210,9 +209,9 @@ if __name__ == "__main__":
     #not sure in docker, at start, the csv_file in sys.argv[4], the openai_api_key in sys.argv[5]
     # the argv was = ['something unknown', 'streamlit', 'run', 'chat_analysis.py', '*.csv', 'sk-xxxx']
     bamboollm_key_app_file = sys.argv[1] if len(sys.argv) > 1 else None
-    csv_file = sys.argv[2] if len(sys.argv) > 2 else None
+    groq_api_key_file = sys.argv[2] if len(sys.argv) > 2 else None
     openai_api_key_file = sys.argv[3] if len(sys.argv) > 3 else None
-    groq_api_key_file = sys.argv[4] if len(sys.argv) > 4 else None
+    csv_file = sys.argv[4] if len(sys.argv) > 4 else None
 
     openai_api_key = None
     bamboollm_key_app = None

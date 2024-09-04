@@ -5,3 +5,5 @@ pyyaml
 streamlit
 scikit-learn
 pycaret
+streamlit-aggrid
+langchain-groq	

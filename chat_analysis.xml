@@ -20,13 +20,15 @@
         echo "Script executed from: `pwd`" &&
         cd /ChatAnalysis &&
         streamlit run chat_analysis.py
-         $__tool_directory__/bamboo_api_key.txt 
-        #if $input_csv
-        $input_csv
-        #end if
-        #if $openai_api_key_file
-        $openai_api_key_file
-        #end if
+            $__tool_directory__/bamboo_api_key.txt 
+            $__tool_directory__/groq_api_key.txt
+            #if $openai_api_key_file
+            $openai_api_key_file
+            #end if
+            #if $input_csv
+            $input_csv
+            #end if
+            
         ]]>
     </command>
     <configfiles>
@@ -43,7 +45,13 @@
     <tests>
     </tests>
     <help>
-        Chat with your data 
+        Analyze and visualize a dataset with a Chat Agent.
+        
+        Simply start a ChatAnalysis instance after selecting a dataset because we provide free access to Groq API and BambooLLM API.
+        
+        Or if you wish to set the OpenAI API key beforehand, you can do so in User - Preferences - Manage Information - ChatGPT - OpenAI API Key. This way, you won't need to set OpenAI API key every time you use the app.
+        
+        Or you can set the API key directly in the ChatAnalysis instance once it has started.
     </help>
 </tool>
 
