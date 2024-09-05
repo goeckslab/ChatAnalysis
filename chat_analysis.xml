@@ -19,16 +19,14 @@
         echo "Starting Streamlit" &&
         echo "Script executed from: `pwd`" &&
         cd /ChatAnalysis &&
+        ln -sf $__tool_directory__/.env .env &&
         streamlit run chat_analysis.py
-            $__tool_directory__/bamboo_api_key.txt 
-            $__tool_directory__/groq_api_key.txt
-            #if $openai_api_key_file
-            $openai_api_key_file
-            #end if
+            $openai_api_key_file 
+            $chat_history
             #if $input_csv
-            $input_csv
+            $input_csv 
             #end if
-            
+
         ]]>
     </command>
     <configfiles>
@@ -36,11 +34,14 @@
             $__user__.extra_preferences.get('chatapt|api_key')
         ]]></configfile>
     </configfiles>
+    <stdio>
+        <exit_code range="0:0" level="log"/>
+    </stdio>
     <inputs>
         <param name="input_csv"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="true"/>
     </inputs>
     <outputs>
-        <data name="outfile" format="txt"/>
+        <data name="chat_history" format="html" label="${tool.name} chat history on ${on_string}"/>
     </outputs>
     <tests>
     </tests>

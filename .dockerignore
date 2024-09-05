@@ -14,3 +14,6 @@ openai_key.txt
 *.log
 groq_api_key.txt
 temp/
+*.html
+*.json
+.env

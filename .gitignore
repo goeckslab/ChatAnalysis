@@ -13,3 +13,5 @@ openai_key.txt
 *.csv
 *.log
 groq_api_key.txt
+*.html
+*.json

@@ -68,11 +68,11 @@ def display_example_questions():
     with st.sidebar:
         st.divider()
         st.markdown("## Example Questions")
-        st.write("Can you tell me something interesting about the dataset?")
-        st.write("Can you provide a summary of the dataset?")
+        st.write("tell me something interesting about the dataset in a plot?")
+        st.write("summarize the dataset")
         st.write("Are there any missing values in the dataset? If so, which columns have them?")
-        st.write("Can you create a histogram for [a specific column]?")
-        st.write("Can you provide a scatterplot for [two specific columns]?")
+        st.write("create a histogram for [a specific column]?")
+        st.write("provide a scatterplot for [two specific columns]?")
 
     with st.sidebar:
         st.divider()
