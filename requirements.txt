@@ -8,3 +8,4 @@ pycaret
 streamlit-aggrid
 langchain-groq	
 python-dotenv
+seaborn

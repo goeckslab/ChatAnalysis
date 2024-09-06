@@ -28,15 +28,12 @@ def get_openai_key(openai_api_key):
         st.error("OpenAI API key not set for your chat")
         st.stop()
     
-    try:
-        client = openai.OpenAI(api_key=openai_api_key)
-        client.models.list()
-    except openai.AuthenticationError as e:
-        st.error(e.body["message"])
-        st.stop()
-    except Exception as e:
-        st.error("Not available at this moment. Please try again later.")
-        st.stop()
+    # try:
+    #     client = openai.OpenAI(api_key=openai_api_key)
+    #     client.models.list()
+    # except Exception as e:
+    #     st.error(e)
+    #     st.stop()
 
     model = st.sidebar.selectbox(label="Select the model you want", options=supported_chat_models)
     return model, openai_api_key

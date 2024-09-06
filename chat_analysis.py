@@ -17,6 +17,26 @@ import json
 from dotenv import load_dotenv
 from generate_html_report import generate_html_from_json
 
+@st.cache_resource
+def create_agent(llm_choice, model, df, api_key, user_defined_path):
+    llm = None
+    if llm_choice == "BambooLLM":
+        llm = BambooLLM(api_key=api_key)
+    elif llm_choice == "OpenAI":
+        llm = OpenAI(api_token=api_key, model=model)
+    elif llm_choice == "Groq":
+        llm = ChatGroq(api_key=api_key, model_name=model)
+
+    agent = Agent(df, config={
+        "llm": llm,
+        "save_charts": True,
+        "save_charts_path": user_defined_path,
+        "custom_whitelisted_dependencies": ["pycaret", "seaborn"],
+        "save_logs": False
+    })
+
+    return agent
+
 class ChatAnalysisApp:
     '''
 a bug in resposeparser:
@@ -40,7 +60,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         if llm_choice == "OpenAI":
             self.llm_choice = llm_choice
             self.model = model
-            self.openai_api_key = api_key_user
+            self.api_key = api_key_user
         elif llm_choice == "BambooLLM":
             self.llm_choice = llm_choice
             self.model = "BambooLLM"
@@ -165,22 +185,6 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         })
         st.write(result)
 
-    def create_agent(self):
-        llm = None
-        if self.llm_choice == "BambooLLM":
-            llm = BambooLLM(api_key=self.api_key)
-        elif self.llm_choice == "OpenAI":
-            llm = OpenAI(api_token=self.openai_api_key, model=self.model)
-        elif self.llm_choice == "Groq":
-            llm = ChatGroq(api_key=self.api_key, model_name=self.model)
-        self.agent = Agent(self.df, config={
-            "llm": llm,
-            "save_charts": True,
-            "save_charts_path": self.user_defined_path,
-            "custom_whitelisted_dependencies": ["pycaret"],
-            "save_logs": False
-        })
-
     def run(self):
         st.title("ChatAnalysis")
         st.write("You can get your free API key for BambooLLM or Groq signing up at https://pandas-ai.com or https://groq.com")
@@ -194,40 +198,40 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         
         if self.df_loaded:
             AgGrid(self.df.head(5), height=220)
-            self.create_agent()
+            agent = create_agent(self.llm_choice, self.model, self.df, self.api_key, self.user_defined_path)
 
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                if "image" in message and "content" in message:
-                    with st.expander("Executed code"):
-                        st.code(body=message["code_excuted"], line_numbers=True)
-                    st.image(self.decode_base64_to_image(message["image"]))
-                    st.write(message["content"])
-                elif "image" in message:
-                    with st.expander("Executed code"):
-                        st.code(body=message["code_excuted"], line_numbers=True)
-                    st.image(self.decode_base64_to_image(message["image"]))
-                elif "code_generated" in message:
-                    st.code(body=message["code_generated"], line_numbers=True)
-                elif message["role"] == "assistant":
-                    with st.expander("Executed code"):
-                        st.code(body=message["code_excuted"], line_numbers=True)
-                    st.write(message["content"])
-                else:
-                    st.markdown(message["content"])
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    if "image" in message and "content" in message:
+                        with st.expander("Executed code"):
+                            st.code(body=message["code_excuted"], line_numbers=True)
+                        st.image(self.decode_base64_to_image(message["image"]))
+                        st.write(message["content"])
+                    elif "image" in message:
+                        with st.expander("Executed code"):
+                            st.code(body=message["code_excuted"], line_numbers=True)
+                        st.image(self.decode_base64_to_image(message["image"]))
+                    elif "code_generated" in message:
+                        st.code(body=message["code_generated"], line_numbers=True)
+                    elif message["role"] == "assistant":
+                        with st.expander("Executed code"):
+                            st.code(body=message["code_excuted"], line_numbers=True)
+                        st.write(message["content"])
+                    else:
+                        st.markdown(message["content"])
 
-        if self.agent and (prompt := st.chat_input("Ask a question about your data (You can find question examples in the sidebar).")):  # Check if agent is created
-            self.handle_user_input(prompt)
-            with st.chat_message("assistant"):
-                result = None
-                try:
-                    with st.spinner('Generating response...'):
-                        result = self.agent.chat(prompt)
-                except PandasAIApiCallError as e:
-                    st.write(f"The BambooLLM free tier has a limit of 100 API calls per month. \
-                            We have reached the limit. \
-                            Please use the OpenAI model to continue the analysis.")
-                self.process_result(result, self.agent)
+            if agent and (prompt := st.chat_input("Ask a question about your data (You can find question examples in the sidebar).")):  # Check if agent is created
+                self.handle_user_input(prompt)
+                with st.chat_message("assistant"):
+                    result = None
+                    try:
+                        with st.spinner('Generating response...'):
+                            result = agent.chat(prompt)
+                    except PandasAIApiCallError as e:
+                        st.write(f"The BambooLLM free tier has a limit of 100 API calls per month. \
+                                We have reached the limit. \
+                                Please use the OpenAI model to continue the analysis.")
+                    self.process_result(result, agent)
 
 
 if __name__ == "__main__":
