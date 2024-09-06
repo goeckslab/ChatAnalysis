@@ -1,3 +1,4 @@
+```mermaid
 sequenceDiagram
     participant U as User
     participant F as Frontend (Streamlit)
@@ -32,3 +33,4 @@ sequenceDiagram
         P->>F: Forward response with results/visualization
         F->>U: Display response in chat interface
     end
+```
