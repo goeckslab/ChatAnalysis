@@ -4,7 +4,7 @@ sequenceDiagram
     participant F as Frontend (Streamlit)
     participant P as Pandas-AI
     participant L as LLM (OpenAI/BambooLLM/Groq)
-    participant D as Data Libraries (Pandas/Seaborn/Matplotlib/SKlearn/PyCaret)
+    participant D as supported Libraries (Pandas/Seaborn/Matplotlib/SKlearn/PyCaret)
     
     rect rgb(191, 223, 255)
     note right of U: User Interaction
