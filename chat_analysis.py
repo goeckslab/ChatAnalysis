@@ -5,7 +5,7 @@ import base64
 import io
 from PIL import Image
 from pandasai import Agent
-from pandasai.llm import OpenAI, BambooLLM
+from pandasai.llm import OpenAI, BambooLLM, AzureOpenAI
 from pandasai.responses.streamlit_response import StreamlitResponse
 import config
 from helper import detect_image_path
@@ -26,6 +26,12 @@ def create_agent(llm_choice, model, df, api_key, user_defined_path):
         llm = OpenAI(api_token=api_key, model=model)
     elif llm_choice == "Groq":
         llm = ChatGroq(api_key=api_key, model_name=model)
+    elif llm_choice == "GPT-4o":
+        llm = AzureOpenAI(api_token=api_key,
+                        azure_endpoint="https://models.inference.ai.azure.com",
+                        deployment_name="gpt-4o",
+                        api_version="2024-08-01-preview"
+                        )
 
     agent = Agent(df, config={
         "llm": llm,
@@ -44,7 +50,13 @@ a bug in resposeparser:
 The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec.
 '''
           
-    def __init__(self, csv_file=None, openai_api_key=None, bamboollm_key_app=None, groq_api_key=None, history_html=None):
+    def __init__(self,
+                csv_file=None,
+                openai_api_key=None,
+                bamboollm_key_app=None,
+                groq_api_key=None,
+                history_html=None,
+                free_openai_token=None):
         self.user_defined_path = os.path.join(os.getcwd(), 'temp')
         self.history_html = history_html
         self.llm_choice = None
@@ -72,6 +84,10 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             self.llm_choice = llm_choice
             self.model = "llama3-groq-70b-8192-tool-use-preview"
             self.api_key = groq_api_key
+        elif llm_choice == "GPT-4o":
+            self.llm_choice = "GPT-4o"
+            self.model = "gpt-4o"
+            self.api_key = free_openai_token
             
         self.df_loaded = False
         self.df = None
@@ -247,6 +263,7 @@ if __name__ == "__main__":
     openai_api_key = None
     bamboollm_key_app = None
     groq_api_key = None
+    free_openai_token = None
     if openai_api_key_file:
         with open(openai_api_key_file, 'r') as f:
             openai_api_key = f.read().strip()
@@ -256,8 +273,15 @@ if __name__ == "__main__":
             groq_api_key = os.getenv("GROQ_API_KEY")
         if os.getenv("BAMBOOLLM_API_KEY"):
             bamboollm_key_app = os.getenv("BAMBOOLLM_API_KEY")
+        if os.getenv("GITHUB_ACCESS_TOKEN"):
+            free_openai_token = os.getenv("GITHUB_ACCESS_TOKEN")
     
-    app = ChatAnalysisApp(csv_file, openai_api_key, bamboollm_key_app, groq_api_key, chat_history_html)
+    app = ChatAnalysisApp(csv_file,
+                        openai_api_key,
+                        bamboollm_key_app,
+                        groq_api_key,
+                        chat_history_html,
+                        free_openai_token)
     app.run()
             
   
