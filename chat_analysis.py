@@ -17,6 +17,8 @@ import json
 from dotenv import load_dotenv
 from generate_html_report import generate_html_from_json
 
+st.set_page_config(page_title="Galaxy Chat Analysis", page_icon="page_icon.jpg")
+
 @st.cache_resource
 def create_agent(llm_choice, model, df, api_key, user_defined_path):
     llm = None
@@ -202,8 +204,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         st.write(result)
 
     def run(self):
-        st.title("ChatAnalysis")
-        st.write("You can get your free API key for BambooLLM or Groq signing up at https://pandas-ai.com or https://groq.com")
+        st.title("Galaxy Chat Analysis")
         config.display_example_questions()
         
         if not self.df_loaded:

@@ -17,3 +17,6 @@ temp/
 *.html
 *.json
 .env
+protype.py
+seq.md
+test.py
