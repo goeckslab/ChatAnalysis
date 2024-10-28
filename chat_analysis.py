@@ -17,7 +17,7 @@ import json
 from dotenv import load_dotenv
 from generate_html_report import generate_html_from_json
 
-st.set_page_config(page_title="Galaxy Chat Analysis", page_icon="page_icon.jpg")
+st.set_page_config(page_title="Galaxy Chat Analysis", page_icon="favicon.ico")
 
 @st.cache_resource
 def create_agent(llm_choice, model, df, api_key, user_defined_path):
@@ -32,6 +32,12 @@ def create_agent(llm_choice, model, df, api_key, user_defined_path):
         llm = AzureOpenAI(api_token=api_key,
                         azure_endpoint="https://models.inference.ai.azure.com",
                         deployment_name="gpt-4o",
+                        api_version="2024-08-01-preview"
+                        )
+    elif llm_choice == "GPT-4o-mini":
+        llm = AzureOpenAI(api_token=api_key,
+                        azure_endpoint="https://models.inference.ai.azure.com",
+                        deployment_name="gpt-4o-mini",
                         api_version="2024-08-01-preview"
                         )
 
@@ -84,11 +90,15 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 self.api_key = bamboollm_key_app
         elif llm_choice == "Groq":
             self.llm_choice = llm_choice
-            self.model = "llama3-groq-70b-8192-tool-use-preview"
+            self.model = "llama-3.2-90b-vision-preview"
             self.api_key = groq_api_key
         elif llm_choice == "GPT-4o":
             self.llm_choice = "GPT-4o"
             self.model = "gpt-4o"
+            self.api_key = free_openai_token
+        elif llm_choice == "GPT-4o-mini":
+            self.llm_choice = "GPT-4o-mini"
+            self.model = "gpt-4o-mini"
             self.api_key = free_openai_token
             
         self.df_loaded = False
@@ -137,6 +147,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             json.dump(serializable_messages, json_file)
         
         if self.history_html:
+            print(self.history_html)
             generate_html_from_json("chat_history.json", self.history_html)
 
     def handle_user_input(self, prompt):
@@ -144,6 +155,20 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         with st.chat_message("user"):
             st.markdown(prompt)
         self.save_chat_history()
+    
+    def handle_user_input_response(self, prompt):
+        self.handle_user_input(prompt)
+        with st.chat_message("assistant"):
+            result = None
+            try:
+                with st.spinner('Generating response...'):
+                    result = self.agent.chat(prompt)
+            except PandasAIApiCallError as e:
+                st.write(f"The BambooLLM free tier has a limit of 100 API calls per month. \
+                        We have reached the limit. \
+                        Please use the OpenAI model to continue the analysis.")
+            self.process_result(result, self.agent)
+
 
     def process_result(self, result, agent):
         # print(f"result:{result}")
@@ -205,7 +230,8 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
 
     def run(self):
         st.title("Galaxy Chat Analysis")
-        config.display_example_questions()
+        seleted_question = config.display_example_questions()
+        config.display_notes()
         
         if not self.df_loaded:
             csv_file = st.file_uploader("Upload your csv file", type=["csv", "tsv"])
@@ -214,8 +240,8 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 self.df_loaded = True
         
         if self.df_loaded:
-            AgGrid(self.df.head(5), height=220)
-            agent = create_agent(self.llm_choice, self.model, self.df, self.api_key, self.user_defined_path)
+            AgGrid(self.df.head(5), height=220, enable_enterprise_modules=False)
+            self.agent = create_agent(self.llm_choice, self.model, self.df, self.api_key, self.user_defined_path)
 
             for message in st.session_state.messages:
                 with st.chat_message(message["role"]):
@@ -237,18 +263,11 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                     else:
                         st.markdown(message["content"])
 
-            if agent and (prompt := st.chat_input("Ask a question about your data (You can find question examples in the sidebar).")):  # Check if agent is created
-                self.handle_user_input(prompt)
-                with st.chat_message("assistant"):
-                    result = None
-                    try:
-                        with st.spinner('Generating response...'):
-                            result = agent.chat(prompt)
-                    except PandasAIApiCallError as e:
-                        st.write(f"The BambooLLM free tier has a limit of 100 API calls per month. \
-                                We have reached the limit. \
-                                Please use the OpenAI model to continue the analysis.")
-                    self.process_result(result, agent)
+            if seleted_question and self.agent:
+                self.handle_user_input_response(seleted_question)
+
+            if self.agent and (prompt := st.chat_input("Ask a question about your data (You can click on an example question in the sidebar).")):
+                self.handle_user_input_response(prompt)
 
 
 if __name__ == "__main__":
