@@ -26,7 +26,7 @@ def get_openai_key(openai_api_key):
     return model, openai_api_key
 
 def configure_llm_options(openai_api_key):
-    available_options = ["GPT-4o", "Groq", "BambooLLM", "OpenAI", "Your BambooLLM API Key"]
+    available_options = ["GPT-4o", "GPT-4o-mini", "Groq", "BambooLLM", "OpenAI", "Your BambooLLM API Key"]
     default_index = 0 if not openai_api_key else 2
     llm_choice = st.sidebar.radio(
         label="Select LLM for analysis:", 
@@ -34,6 +34,8 @@ def configure_llm_options(openai_api_key):
         index=default_index)
     
     if llm_choice == "GPT-4o":
+        return llm_choice, None, None
+    elif llm_choice == "GPT-4o-mini":
         return llm_choice, None, None
     elif llm_choice == "Groq":
         return llm_choice, None, None
@@ -50,23 +52,75 @@ def configure_llm_options(openai_api_key):
         return "BambooLLM", None, bamboollm_key
 
 def display_example_questions():
-    
     with st.sidebar:
+        
         st.divider()
-        st.write("You can get your free API key for BambooLLM or Groq signing up at https://pandas-ai.com or https://groq.com")
-        st.divider()
-        st.markdown("## Example Questions")
-        st.write("tell me something interesting about the dataset in a plot?")
-        st.write("summarize the dataset")
-        st.write("Are there any missing values in the dataset? If so, which columns have them?")
-        st.write("create a histogram for [a specific column]?")
-        st.write("provide a scatterplot for [two specific columns]?")
+        st.markdown("## Click on an Example Question to Try the App")
+    #     example_questions = [
+    #         "Tell me something interesting about the dataset in a plot?",
+    #         "Summarize the dataset",
+    #         "Are there any missing values in the dataset? If so, which columns have them?",
+    #         "Create a histogram for any column?",
+    #         "Provide a scatterplot for any two columns?"
+    #     ]
 
+    #     if "clicked_question" not in st.session_state:
+    #         st.session_state.clicked_question = None
+        
+    #     for question in example_questions:
+    #         col = st.columns(1)
+    #         with col[0]:
+    #             if st.button(question):
+    #                 st.session_state.clicked_question = question
+    # return st.session_state.clicked_question
+        st.markdown("""
+            <style>
+            .stButton > button {
+                background-color: white;
+                color: black; 
+                border: none;
+                padding: 10px 20px;
+                text-align: center;
+                text-decoration: none;
+                display: inline-block;
+                font-size: 16px;
+                margin: 5px 0;
+                cursor: pointer;
+                width: 100%;
+                border-radius: 10px;
+                transition-duration: 0.4s;
+            }
+            .stButton > button:hover {
+                background-color: #D3D3D3;
+                color: black;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+        example_questions = [
+            "Tell me something interesting about the dataset in a plot?",
+            "Summarize the dataset",
+            "Are there any missing values in the dataset? If so, which columns have them?",
+            "Create a histogram for any column?",
+            "Provide a scatterplot for any two columns?"
+        ]
+
+        selected_question = None
+        # Create buttons using a for loop to ensure consistent style and layout
+        for idx, question in enumerate(example_questions):
+            if st.button(question, key=f"btn_{idx}"):
+                selected_question = question
+
+    return selected_question
+
+def display_notes():
     with st.sidebar:
+        st.divider()
+        st.write("You can get your free API key for BambooLLM igning up at https://pandas-ai.com ")
         st.divider()
         st.markdown("## Important Notes")
         st.markdown("#### The tool can make mistakes!")
-        st.markdown("#### The Groq model is llama3-groq-70b-8192-tool-use-preview")
+        st.markdown("#### The Groq model is llama-3.2-90b-vision-preview")
         st.markdown("#### If the answers are not good from Groq and BambooLLM, you could consider OpenAI.")
 
 
