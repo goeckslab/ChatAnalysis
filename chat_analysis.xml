@@ -5,7 +5,7 @@
         </container>
     </requirements>
     <entry_points>
-        <entry_point name="Chat with $input_csv.element_identifier" requires_domain="True">
+        <entry_point name="Chat with $input_dataset.element_identifier" requires_domain="True">
             <port>
                 8501
             </port>
@@ -23,10 +23,8 @@
         streamlit run chat_analysis.py
             $openai_api_key_file 
             $chat_history
-            #if $input_csv
-            $input_csv 
-            #end if
-
+            $export_csv
+            $input_dataset
         ]]>
     </command>
     <configfiles>
@@ -38,17 +36,18 @@
         <exit_code range="0:0" level="log"/>
     </stdio>
     <inputs>
-        <param name="input_csv"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="true"/>
+        <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
     </inputs>
     <outputs>
-        <data name="chat_history" format="html" label="${tool.name} chat history on ${on_string}"/>
+        <data name="chat_history" format="html" label="${tool.name} -- chat history on ${on_string}"/>
+        <data name="export_csv" format="csv" label="${tool.name} -- the exported csv you selected on ${on_string}"/>
     </outputs>
     <tests>
     </tests>
     <help>
         Analyze and visualize a dataset with a Chat Agent.
         
-        Simply start a ChatAnalysis instance after selecting a dataset because we provide free access to Groq API and BambooLLM API.
+        Simply start a ChatAnalysis instance after selecting a dataset -- we provide free access to some LLMs.
         
         Or if you wish to set the OpenAI API key beforehand, you can do so in User - Preferences - Manage Information - ChatGPT - OpenAI API Key. This way, you won't need to set OpenAI API key every time you use the app.
         

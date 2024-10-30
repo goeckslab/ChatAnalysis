@@ -26,7 +26,7 @@ def get_openai_key(openai_api_key):
     return model, openai_api_key
 
 def configure_llm_options(openai_api_key):
-    available_options = ["GPT-4o", "GPT-4o-mini", "Groq", "BambooLLM", "OpenAI", "Your BambooLLM API Key"]
+    available_options = ["Groq", "GPT-4o-mini", "GPT-4o", "BambooLLM", "OpenAI", "Your BambooLLM API Key"]
     default_index = 0 if not openai_api_key else 2
     llm_choice = st.sidebar.radio(
         label="Select LLM for analysis:", 
@@ -55,6 +55,8 @@ def display_example_questions():
     with st.sidebar:
         
         st.divider()
+        st.write("You can get your free API key for BambooLLM or Groq signing up at https://pandas-ai.com or https://groq.com")
+        st.divider()
         st.markdown("## Click on an Example Question to Try the App")
     #     example_questions = [
     #         "Tell me something interesting about the dataset in a plot?",
@@ -76,7 +78,7 @@ def display_example_questions():
         st.markdown("""
             <style>
             .stButton > button {
-                background-color: white;
+                background-color: #dcf1f7;
                 color: black; 
                 border: none;
                 padding: 10px 20px;
@@ -120,7 +122,7 @@ def display_notes():
         st.divider()
         st.markdown("## Important Notes")
         st.markdown("#### The tool can make mistakes!")
-        st.markdown("#### The Groq model is llama-3.2-90b-vision-preview")
+        st.markdown("#### The Groq model is llama-3.2-90b-text-preview")
         st.markdown("#### If the answers are not good from Groq and BambooLLM, you could consider OpenAI.")
 
 
