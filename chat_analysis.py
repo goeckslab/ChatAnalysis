@@ -19,6 +19,14 @@ from generate_html_report import generate_html_from_json
 
 st.set_page_config(page_title="Galaxy Chat Analysis", page_icon="favicon.ico")
 
+def export_to_galaxy(data, output_path):
+    if isinstance(data, pd.DataFrame):
+        data.to_csv(output_path, index=False)
+        print(f"Exported data to Galaxy at path: {output_path}")
+        
+        st.toast("The dataset you selected has been saved back to the Galaxy. You can see it on the history bar.")
+        
+
 @st.cache_resource
 def create_agent(llm_choice, model, df, api_key, user_defined_path):
     llm = None
@@ -64,10 +72,12 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 bamboollm_key_app=None,
                 groq_api_key=None,
                 history_html=None,
-                free_openai_token=None):
+                free_openai_token=None,
+                output_dataset=None):
         self.user_defined_path = os.path.join(os.getcwd(), 'temp')
         self.history_html = history_html
         self.llm_choice = None
+        self.output_dataset = output_dataset
 
         # if openai_api_key:
         #     ## to-do: add model choice
@@ -90,7 +100,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 self.api_key = bamboollm_key_app
         elif llm_choice == "Groq":
             self.llm_choice = llm_choice
-            self.model = "llama-3.2-90b-vision-preview"
+            self.model = "llama-3.2-90b-text-preview"
             self.api_key = groq_api_key
         elif llm_choice == "GPT-4o":
             self.llm_choice = "GPT-4o"
@@ -130,7 +140,12 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             st.session_state.messages = []
             if os.path.exists("chat_history.json"):
                 with open("chat_history.json", "r") as json_file:
-                    st.session_state.messages = json.load(json_file)
+                    messages = json.load(json_file)
+                    for message in messages:
+                        if "content_df" in message:
+                            message["content"] = pd.DataFrame(message["content_df"])
+                    st.session_state.messages = messages
+                    
     
     def save_chat_history(self):
         serializable_messages = []
@@ -169,10 +184,10 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                         Please use the OpenAI model to continue the analysis.")
             self.process_result(result, self.agent)
 
-
     def process_result(self, result, agent):
-        # print(f"result:{result}")
-        if isinstance(result, str) and "Generated code includes import of" in result and "which is not in whitelist" in result:
+        if isinstance(result, pd.DataFrame):
+            self.dispaly_dataframe_result(result, agent)
+        elif isinstance(result, str) and "Generated code includes import of" in result and "which is not in whitelist" in result:
             st.code(body=agent.last_code_generated, line_numbers=True)
             st.session_state.messages.append({
                 "role": "assistant", 
@@ -192,6 +207,20 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         else:
             self.display_text_result(result, agent)
         self.save_chat_history()
+
+    def dispaly_dataframe_result(self, result, agent):
+        with st.expander("Executed code"):
+            st.code(body=agent.last_code_executed, line_numbers=True)
+        AgGrid(result, height=220, key=f'export_df_{len(st.session_state.messages)}', enable_enterprise_modules=False)
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": result,
+            "code_excuted": agent.last_code_executed
+        })
+        if st.button(f'Export this dataset back to Galaxy', key=f'export_{len(st.session_state.messages)-1}'):
+            print("processing button")
+            if self.output_dataset:
+                export_to_galaxy(result, self.output_dataset)           
 
     def display_image_text_result(self, result, image_path, agent):
         with st.expander("Executed code"):
@@ -243,7 +272,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             AgGrid(self.df.head(5), height=220, enable_enterprise_modules=False)
             self.agent = create_agent(self.llm_choice, self.model, self.df, self.api_key, self.user_defined_path)
 
-            for message in st.session_state.messages:
+            for idx, message in enumerate(st.session_state.messages):
                 with st.chat_message(message["role"]):
                     if "image" in message and "content" in message:
                         with st.expander("Executed code"):
@@ -256,6 +285,18 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                         st.image(self.decode_base64_to_image(message["image"]))
                     elif "code_generated" in message:
                         st.code(body=message["code_generated"], line_numbers=True)
+                    elif isinstance(message['content'], pd.DataFrame):
+                        with st.expander("Executed code"):
+                            st.code(body=message["code_excuted"], line_numbers=True)
+                        df = message["content"]
+                        AgGrid(df, height=220, enable_enterprise_modules=False, key=f'export_df_{idx}')
+                        # print(message)
+                        if st.button(f'Export this dataset back to Galaxy', key=f'export_{idx}'):
+                            print("get in here")
+                            print(self.output_dataset)
+                            if self.output_dataset:
+                                df_to_export = pd.DataFrame(message["content"].to_dict())
+                                export_to_galaxy(df_to_export, self.output_dataset)
                     elif message["role"] == "assistant":
                         with st.expander("Executed code"):
                             st.code(body=message["code_excuted"], line_numbers=True)
@@ -278,7 +319,8 @@ if __name__ == "__main__":
     
     openai_api_key_file = sys.argv[1] if len(sys.argv) > 1 else None
     chat_history_html = sys.argv[2] if len(sys.argv) > 2 else None
-    csv_file = sys.argv[3] if len(sys.argv) > 3 else None
+    output_dataset = sys.argv[3] if len(sys.argv) > 3 else None
+    csv_file = sys.argv[4] if len(sys.argv) > 4 else None
     
     openai_api_key = None
     bamboollm_key_app = None
@@ -301,7 +343,8 @@ if __name__ == "__main__":
                         bamboollm_key_app,
                         groq_api_key,
                         chat_history_html,
-                        free_openai_token)
+                        free_openai_token,
+                        output_dataset)
     app.run()
             
   

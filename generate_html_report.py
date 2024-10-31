@@ -2,30 +2,57 @@ import json
 import argparse
 import pandas as pd
 
-# Function to generate a table from a DataFrame (or dict)
+# Function to generate a table from a DataFrame
 def dict_to_html_table(data_dict):
-    # Generate an HTML table with modern CSS
+    # Generate an enhanced HTML table with DataTables JavaScript library for better interactivity
     html_content = """
     <div class='container'>
         <h2>Data Table</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Key</th>
-                    <th>Value</th>
-                </tr>
-            </thead>
-            <tbody>
+        <div class='table-responsive'>
+            <table id='data-table' class='display nowrap' style='width:100%'>
+                <thead>
+                    <tr>
     """
     
-    # Iterate over the dictionary to populate rows
-    for key, value in data_dict.items():
-        html_content += f"<tr><td>{key}</td><td>{value}</td></tr>"
+    # Add headers dynamically based on keys
+    headers = data_dict.keys()
+    for header in headers:
+        html_content += f"<th>{header}</th>"
     
     html_content += """
-            </tbody>
-        </table>
+                    </tr>
+                </thead>
+                <tbody>
+    """
+
+    # Transpose the dictionary to create rows
+    num_rows = len(next(iter(data_dict.values())))
+    for i in range(num_rows):
+        html_content += "<tr>"
+        for key in data_dict.keys():
+            value = data_dict[key][i]
+            html_content += f"<td>{value}</td>"
+        html_content += "</tr>"
+    
+    html_content += """
+                </tbody>
+            </table>
+        </div>
     </div>
+    <script>
+        $(document).ready(function() {
+            if ($.fn.DataTable.isDataTable('#data-table')) {
+                $('#data-table').DataTable().destroy();
+            }
+            $('#data-table').DataTable({
+                "paging": true,
+                "searching": true,
+                "ordering": true,
+                "info": true,
+                "scrollX": true
+            });
+        });
+    </script>
     """
     
     return html_content
@@ -49,12 +76,15 @@ def generate_html_from_json(json_file, output_html):
             min-height: 100vh;
         }
         .container {
-            max-width: 800px;
-            width: 100%;
+            max-width: 100%;
+            width: 95%;
             background-color: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .table-responsive {
+            overflow-x: auto;
         }
         h2 {
             text-align: center;
@@ -103,6 +133,42 @@ def generate_html_from_json(json_file, output_html):
             margin-top: 10px;
             overflow-x: auto;
         }
+        .foldable {
+            cursor: pointer;
+            margin-bottom: 10px;
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .foldable:hover {
+            background-color: #0056b3;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .foldable:active {
+            background-color: #004494;
+            transform: translateY(2px); /* Adds a pressed effect when clicked */
+        }
+        .fold-content {
+            display: none;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 95%; /* Ensures it does not exceed the container width */
+            overflow-x: auto; /* Adds horizontal scroll if necessary */
+            word-wrap: break-word; /* Breaks long words */
+            white-space: pre-wrap; /* Preserves formatting while wrapping long lines */
+            
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -120,13 +186,27 @@ def generate_html_from_json(json_file, output_html):
         tr:nth-child(even) {
             background-color: #f9f9f9;
         }
+        </style>
     </style>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.css">
+    <script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.js"></script>
+    <script>
+        function toggleFoldable(id) {
+            var content = document.getElementById(id);
+            if (content.style.display === "none" || content.style.display === "") {
+                content.style.display = "block";
+            } else {
+                content.style.display = "none";
+            }
+        }
+    </script>
     """
 
     # Generate HTML content
     html_content = f"<html><head>{css_styles}</head><body><div class='container'><h2>Chat History</h2><div class='chat-container'>"
     
-    for message in chat_history:
+    for idx, message in enumerate(chat_history):
         role = message["role"].capitalize()
         content = message.get("content", "")
         
@@ -136,21 +216,25 @@ def generate_html_from_json(json_file, output_html):
         else:
             html_content += f"<div class='message-container assistant-message'><p><strong>{role}:</strong> {content}</p></div>"
 
-        # If an image is included
-        if "image" in message:
-            html_content += f'<img src="data:image/png;base64,{message["image"]}" alt="Image"/><br>'
-        
-        # If code was generated
-        if "code_generated" in message:
-            html_content += f"<div class='code-block'><pre>{message['code_generated']}</pre></div>"
+            if "code_excuted" in message:
+                html_content += f"<div class='foldable' onclick='toggleFoldable(\"fold-exec-{idx}\")'><strong>Show/Hide Executed Code</strong></div>"
+                html_content += f"<div id='fold-exec-{idx}' class='fold-content'><pre>{message['code_excuted']}</pre></div>"
 
-        # If there's a DataFrame in the message (under 'content_df')
-        if "content_df" in message:
-            # Convert the DataFrame from JSON back to a pandas DataFrame
-            df = pd.DataFrame(message["content_df"])
-            # Convert the DataFrame to a dictionary and generate an HTML table
-            data_dict = df.to_dict(orient='list')
-            html_content += dict_to_html_table(data_dict)
+            # If an image is included
+            if "image" in message:
+                html_content += f'<img src="data:image/png;base64,{message["image"]}" alt="Image"/><br>'
+            
+            # If code was generated
+            if "code_generated" in message:
+                html_content += f"<div class='code-block'><pre>{message['code_generated']}</pre></div>"
+
+            # If there's a DataFrame in the message (under 'content_df')
+            if "content_df" in message:
+                # Convert the DataFrame from JSON back to a pandas DataFrame
+                df = pd.DataFrame(message["content_df"])
+                # Convert the DataFrame to a dictionary and generate an enhanced HTML table
+                data_dict = df.to_dict(orient='list')
+                html_content += dict_to_html_table(data_dict)
 
     html_content += "</div></div></body></html>"
 
