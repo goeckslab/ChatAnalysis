@@ -1,15 +1,14 @@
-import streamlit as st
-import openai
+import logging
 
-import logging  
+import streamlit as st
 
 logging.basicConfig(level=logging.DEBUG)
 LOG = logging.getLogger(__name__)
 
 supported_chat_models = [
-    "gpt-4o-mini", 
-    "gpt-4",  
-    "gpt-4o", 
+    "gpt-4o-mini",
+    "gpt-4",
+    "gpt-4o",
     "gpt-3.5-turbo",
 ]
 
@@ -19,23 +18,28 @@ groq_models = [
     "llama-3.1-70b-versatile",
 ]
 
+
 def get_groq_key(groq_api_key_user):
     if not groq_api_key_user:
-        groq_api_key_user = st.sidebar.text_input(label="Your Groq API Key:", type="password")
+        groq_api_key_user = st.sidebar.text_input(
+            label="Your Groq API Key:", type="password")
     if not groq_api_key_user:
         st.error("Groq API key not set for your chat")
         st.stop()
-    
-    model = st.sidebar.selectbox(label="Select the model you want", options=groq_models)
+
+    model = st.sidebar.selectbox(
+        label="Select the model you want", options=groq_models)
     return model, groq_api_key_user
+
 
 def get_openai_key(openai_api_key):
     if not openai_api_key:
-        openai_api_key = st.sidebar.text_input(label="Your OpenAI API Key:", type="password")
+        openai_api_key = st.sidebar.text_input(
+            label="Your OpenAI API Key:", type="password")
     if not openai_api_key:
         st.error("OpenAI API key not set for your chat")
         st.stop()
-    
+
     # try:
     #     client = openai.OpenAI(api_key=openai_api_key)
     #     client.models.list()
@@ -43,11 +47,17 @@ def get_openai_key(openai_api_key):
     #     st.error(e)
     #     st.stop()
 
-    model = st.sidebar.selectbox(label="Select the model you want", options=supported_chat_models)
+    model = st.sidebar.selectbox(
+        label="Select the model you want",
+        options=supported_chat_models)
     return model, openai_api_key
 
 def configure_llm_options(openai_api_key, groq_api_key_user, groq_api_key):
-    available_options = ["llama-3.2-90b", "Your-Groq-API-Key", "OpenAI", "Your-BambooLLM-API-Key" ]
+    available_options = [
+        "llama-3.2-90b",
+        "Your-Groq-API-Key",
+        "OpenAI",
+        "Your-BambooLLM-API-Key" ]
     default_index = 0
     if not groq_api_key:
         del available_options[0]
@@ -57,7 +67,8 @@ def configure_llm_options(openai_api_key, groq_api_key_user, groq_api_key):
         default_index = 2 if groq_api_key else 1
 
     llm_choice = st.sidebar.radio(
-        label="Select a LLM for analysis (You are encouraged to use your own API keys. See below for more information):", 
+        label="Select a LLM for analysis \
+            (You are encouraged to use your own API keys. See below for more information):", 
         options=available_options, 
         index=default_index)
     
