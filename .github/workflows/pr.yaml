@@ -6,6 +6,9 @@ on:
       - 'deprecated/**'
       - 'docs/**'
       - '*'
+    branches:
+      - galaxy-integration
+      - main
   push:
     branches:
       - galaxy-integration
