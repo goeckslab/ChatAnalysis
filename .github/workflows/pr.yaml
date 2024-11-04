@@ -5,7 +5,6 @@ on:
       - '.github/**'
       - 'deprecated/**'
       - 'docs/**'
-      - '*'
     branches:
       - galaxy-integration
       - main
