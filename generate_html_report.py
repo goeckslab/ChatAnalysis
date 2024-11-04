@@ -1,15 +1,19 @@
 import json
 import argparse
 import pandas as pd
+import logging  
+
+logging.basicConfig(level=logging.DEBUG)
+LOG = logging.getLogger(__name__)
 
 # Function to generate a table from a DataFrame
-def dict_to_html_table(data_dict):
+def dict_to_html_table(data_dict, table_id):
     # Generate an enhanced HTML table with DataTables JavaScript library for better interactivity
-    html_content = """
+    html_content = f"""
     <div class='container'>
         <h2>Data Table</h2>
         <div class='table-responsive'>
-            <table id='data-table' class='display nowrap' style='width:100%'>
+            <table id='{table_id}' class='display nowrap' style='width:100%'>
                 <thead>
                     <tr>
     """
@@ -34,25 +38,25 @@ def dict_to_html_table(data_dict):
             html_content += f"<td>{value}</td>"
         html_content += "</tr>"
     
-    html_content += """
+    html_content += f"""
                 </tbody>
             </table>
         </div>
     </div>
     <script>
-        $(document).ready(function() {
-            if ($.fn.DataTable.isDataTable('#data-table')) {
-                $('#data-table').DataTable().destroy();
-            }
-            $('#data-table').DataTable({
+        $(document).ready(function() {{
+            // Initialize the DataTable with the desired settings
+            $('#{table_id}').DataTable({{
                 "paging": true,
                 "searching": true,
                 "ordering": true,
                 "info": true,
-                "scrollX": true
-            });
-        });
+                "scrollX": true,
+                "lengthMenu": [10, 25, 50, 100] // Options for rows per page selection
+            }});
+        }});
     </script>
+
     """
     
     return html_content
@@ -187,7 +191,6 @@ def generate_html_from_json(json_file, output_html):
             background-color: #f9f9f9;
         }
         </style>
-    </style>
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.css">
     <script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.js"></script>
@@ -234,7 +237,11 @@ def generate_html_from_json(json_file, output_html):
                 df = pd.DataFrame(message["content_df"])
                 # Convert the DataFrame to a dictionary and generate an enhanced HTML table
                 data_dict = df.to_dict(orient='list')
-                html_content += dict_to_html_table(data_dict)
+                table_id = f"data-table-{idx}"
+                try:
+                    html_content += dict_to_html_table(data_dict, table_id)
+                except Exception as e:
+                    LOG.error(f"Error generating table: {e}")
 
     html_content += "</div></div></body></html>"
 

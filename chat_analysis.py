@@ -17,7 +17,7 @@ import json
 from dotenv import load_dotenv
 from generate_html_report import generate_html_from_json
 
-st.set_page_config(page_title="Galaxy Chat Analysis", page_icon="favicon.ico")
+st.set_page_config(page_title="Galaxy Chat Analysis", page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favicon.ico'))
 
 def export_to_galaxy(data, output_path):
     if isinstance(data, pd.DataFrame):
@@ -26,7 +26,6 @@ def export_to_galaxy(data, output_path):
         
         st.toast("The dataset you selected has been saved back to the Galaxy. You can see it on the history bar.")
         
-
 @st.cache_resource
 def create_agent(llm_choice, model, df, api_key, user_defined_path):
     llm = None
@@ -48,6 +47,8 @@ def create_agent(llm_choice, model, df, api_key, user_defined_path):
                         deployment_name="gpt-4o-mini",
                         api_version="2024-08-01-preview"
                         )
+    elif llm_choice == "Your-Groq-API-Key":
+        llm = ChatGroq(api_key=api_key, model_name=model)
 
     agent = Agent(df, config={
         "llm": llm,
@@ -73,8 +74,11 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 groq_api_key=None,
                 history_html=None,
                 free_openai_token=None,
-                output_dataset=None):
-        self.user_defined_path = os.path.join(os.getcwd(), 'temp')
+                plots_path=None,
+                output_dataset=None,
+                groq_api_key_user=None):
+        # self.user_defined_path = os.path.join(os.getcwd(), 'temp')
+        self.user_defined_path = plots_path
         self.history_html = history_html
         self.llm_choice = None
         self.output_dataset = output_dataset
@@ -86,7 +90,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         #     self.model = "gpt-4o-mini"
         # else:
         
-        llm_choice, model, api_key_user = config.configure_llm_options(openai_api_key)
+        llm_choice, model, api_key_user = config.configure_llm_options(openai_api_key, groq_api_key_user)
         if llm_choice == "OpenAI":
             self.llm_choice = llm_choice
             self.model = model
@@ -110,6 +114,10 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             self.llm_choice = "GPT-4o-mini"
             self.model = "gpt-4o-mini"
             self.api_key = free_openai_token
+        elif llm_choice == "Your-Groq-API-Key":
+            self.llm_choice = llm_choice
+            self.model = model
+            self.api_key = api_key_user
             
         self.df_loaded = False
         self.df = None
@@ -162,7 +170,6 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             json.dump(serializable_messages, json_file)
         
         if self.history_html:
-            print(self.history_html)
             generate_html_from_json("chat_history.json", self.history_html)
 
     def handle_user_input(self, prompt):
@@ -233,7 +240,6 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             "content": result,
             "code_excuted": agent.last_code_executed
         })
-        os.remove(image_path)
 
     def display_image_result(self, result, agent):
         with st.expander("Executed code"):
@@ -245,7 +251,6 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
             "image": image, 
             "code_excuted": agent.last_code_executed
         })
-        os.remove(result)
 
     def display_text_result(self, result, agent):
         with st.expander("Executed code"):
@@ -289,11 +294,10 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                         with st.expander("Executed code"):
                             st.code(body=message["code_excuted"], line_numbers=True)
                         df = message["content"]
+                        print(f"lookat the df: {df}")
                         AgGrid(df, height=220, enable_enterprise_modules=False, key=f'export_df_{idx}')
                         # print(message)
                         if st.button(f'Export this dataset back to Galaxy', key=f'export_{idx}'):
-                            print("get in here")
-                            print(self.output_dataset)
                             if self.output_dataset:
                                 df_to_export = pd.DataFrame(message["content"].to_dict())
                                 export_to_galaxy(df_to_export, self.output_dataset)
@@ -316,35 +320,51 @@ if __name__ == "__main__":
     # the argv was = ['something unknown', 'streamlit', 'run', 'chat_analysis.py', '*.csv', 'sk-xxxx']
     # bamboollm_key_app_file = sys.argv[1] if len(sys.argv) > 1 else None
     # groq_api_key_file = sys.argv[2] if len(sys.argv) > 2 else None
-    
+
     openai_api_key_file = sys.argv[1] if len(sys.argv) > 1 else None
-    chat_history_html = sys.argv[2] if len(sys.argv) > 2 else None
-    output_dataset = sys.argv[3] if len(sys.argv) > 3 else None
-    csv_file = sys.argv[4] if len(sys.argv) > 4 else None
+    groq_api_key_user = sys.argv[2] if len(sys.argv) > 2 else None
+    chat_history_html = sys.argv[3] if len(sys.argv) > 3 else None
+    output_dataset = sys.argv[4] if len(sys.argv) > 4 else None
+    plots_path = sys.argv[5] if len(sys.argv) > 5 else None
+    csv_file = sys.argv[6] if len(sys.argv) > 6 else None
+
     
     openai_api_key = None
+    groq_api_key_user = None
     bamboollm_key_app = None
     groq_api_key = None
     free_openai_token = None
     if openai_api_key_file:
         with open(openai_api_key_file, 'r') as f:
             openai_api_key = f.read().strip()
-    if os.path.exists(".env"):
-        load_dotenv()
+    
+    if groq_api_key_user:
+        with open(groq_api_key_user, 'r') as f:
+            groq_api_key_user = f.read().strip()
+    
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(script_dir)
+    env_path = os.path.join(script_dir, '.env')     
+    if os.path.exists(env_path):
+        print(".env loaded")
+        load_dotenv(dotenv_path=env_path)
         if os.getenv("GROQ_API_KEY"):
             groq_api_key = os.getenv("GROQ_API_KEY")
         if os.getenv("BAMBOOLLM_API_KEY"):
             bamboollm_key_app = os.getenv("BAMBOOLLM_API_KEY")
         if os.getenv("GITHUB_ACCESS_TOKEN"):
             free_openai_token = os.getenv("GITHUB_ACCESS_TOKEN")
-    
+    # print(groq_api_key)
     app = ChatAnalysisApp(csv_file,
                         openai_api_key,
                         bamboollm_key_app,
                         groq_api_key,
                         chat_history_html,
                         free_openai_token,
-                        output_dataset)
+                        plots_path,
+                        output_dataset,
+                        groq_api_key_user
+                        )
     app.run()
             
   

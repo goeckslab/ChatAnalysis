@@ -1,0 +1,6 @@
+categories:
+- InteractiveTools
+description: Chat with your dataset powered by LLMs
+name: chatanalysis
+owner: goeckslab
+remote_repository_url: https://github.com/goeckslab/ChatAnalysis

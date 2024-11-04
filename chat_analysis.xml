@@ -18,40 +18,59 @@
         <![CDATA[
         echo "Starting Streamlit" &&
         echo "Script executed from: `pwd`" &&
-        cd /ChatAnalysis &&
-        ln -sf $__tool_directory__/.env .env &&
-        streamlit run chat_analysis.py
-            $openai_api_key_file 
+        mkdir -p plots &&
+        ln -sf $__tool_directory__/.env /ChatAnalysis/.env &&
+        streamlit run /ChatAnalysis/chat_analysis.py
+            $openai_api_key_file
+            $groq_api_key_file 
             $chat_history
             $export_csv
+            "`pwd`/plots"
             $input_dataset
         ]]>
     </command>
     <configfiles>
         <configfile name="openai_api_key_file"><![CDATA[
-            $__user__.extra_preferences.get('chatapt|api_key')
+            $__user__.extra_preferences.get('chatgpt|api_key')
         ]]></configfile>
+        <configfile name="groq_api_key_file"><![CDATA[
+            $__user__.extra_preferences.get('groq|api_key')
+            ]]>
+        </configfile>
     </configfiles>
     <stdio>
         <exit_code range="0:0" level="log"/>
     </stdio>
     <inputs>
         <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
+        <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
     </inputs>
     <outputs>
-        <data name="chat_history" format="html" label="${tool.name} -- chat history on ${on_string}"/>
+        <data name="chat_history" format="html" label="${tool.name} -- chat history html on ${on_string}"/>
         <data name="export_csv" format="csv" label="${tool.name} -- the exported csv you selected on ${on_string}"/>
+        <collection name="chat_plots" type="list" label="${tool.name} -- the generated plots on ${on_string}" >
+            <discover_datasets pattern="(?P&lt;designation&gt;.+)\.png" format="png" directory="plots" />
+        </collection>
     </outputs>
     <tests>
+        <test expect_num_outputs="2">
+            <param name="input_dataset" value="test.csv"/>
+            <output name="chat_history" file="chat_history.html" compare="sim_size" />
+            <output name="export_csv" file="exported.csv" compare="sim_size" />
+        </test>
     </tests>
     <help>
         Analyze and visualize a dataset with a Chat Agent.
-        
-        Simply start a ChatAnalysis instance after selecting a dataset -- we provide free access to some LLMs.
-        
-        Or if you wish to set the OpenAI API key beforehand, you can do so in User - Preferences - Manage Information - ChatGPT - OpenAI API Key. This way, you won't need to set OpenAI API key every time you use the app.
-        
-        Or you can set the API key directly in the ChatAnalysis instance once it has started.
+
+        Start a ChatAnalysis instance after selecting a dataset — we provide free access to some LLMs.
+
+        You are encouraged to use your own API keys, as the provided free access has limits. You can obtain a **free API key** for BambooLLM by signing up at https://pandas-ai.com and a **free API key** for Groq by signing up at https://groq.com.
+
+        If you wish to set the OpenAI API key beforehand, go to **User → Preferences → Manage Information → ChatGPT → OpenAI API Key**. This way, you won’t need to set the OpenAI API key each time you use the app.
+
+        Similarly, to set the Groq API key beforehand, navigate to **User → Preferences → Manage Information → Groq → API Key**.
+
+        Alternatively, you can set the API key directly in the ChatAnalysis instance after it has started.
     </help>
 </tool>
 
