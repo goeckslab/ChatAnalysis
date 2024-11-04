@@ -43,6 +43,7 @@
     </stdio>
     <inputs>
         <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
+        <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
     </inputs>
     <outputs>
         <data name="chat_history" format="html" label="${tool.name} -- chat history html on ${on_string}"/>

@@ -82,6 +82,8 @@ def display_example_questions():
         
         
         st.divider()
+        st.write("You can get your free API key for BambooLLM or Groq signing up at https://pandas-ai.com or https://groq.com")
+        st.divider()
         st.markdown("## Click on an Example Question to Try the App")
     #     example_questions = [
     #         "Tell me something interesting about the dataset in a plot?",
