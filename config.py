@@ -1,6 +1,11 @@
 import streamlit as st
 import openai
 
+import logging  
+
+logging.basicConfig(level=logging.DEBUG)
+LOG = logging.getLogger(__name__)
+
 supported_chat_models = [
     "gpt-4o-mini", 
     "gpt-4",  
@@ -41,13 +46,15 @@ def get_openai_key(openai_api_key):
     model = st.sidebar.selectbox(label="Select the model you want", options=supported_chat_models)
     return model, openai_api_key
 
-def configure_llm_options(openai_api_key, groq_api_key_user):
-    available_options = ["llama-3.2-90b", "GPT-4o-mini", "GPT-4o", "BambooLLM", "OpenAI", "Your-BambooLLM-API-Key", "Your-Groq-API-Key"]
-    default_index = 0 
+def configure_llm_options(openai_api_key, groq_api_key_user, groq_api_key):
+    available_options = ["llama-3.2-90b", "Your-Groq-API-Key", "OpenAI", "Your-BambooLLM-API-Key" ]
+    default_index = 0
+    if not groq_api_key:
+        del available_options[0]
     if groq_api_key_user:
-        default_index = 6
+        del available_options[0]
     elif openai_api_key:
-        default_index = 4
+        default_index = 2 if groq_api_key else 1
 
     llm_choice = st.sidebar.radio(
         label="Select a LLM for analysis (You are encouraged to use your own API keys. See below for more information):", 
