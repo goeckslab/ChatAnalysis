@@ -16,3 +16,6 @@ groq_api_key.txt
 *.html
 *.json
 .DS_Store
+!test-data/*.csv
+!test-data/*.tsv
+!test-data/*.html
