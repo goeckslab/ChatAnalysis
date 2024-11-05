@@ -1,7 +1,7 @@
 <tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.1">
     <requirements>
         <container type="docker">
-            quay.io/goeckslab/chatanalysis:latest
+            quay.io/goeckslab/chatanalysis:main
         </container>
     </requirements>
     <entry_points>
@@ -42,7 +42,6 @@
         <exit_code range="0:0" level="log"/>
     </stdio>
     <inputs>
-        <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
         <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
     </inputs>
     <outputs>

@@ -4,3 +4,6 @@ description: Chat with your dataset powered by LLMs
 name: chatanalysis
 owner: goeckslab
 remote_repository_url: https://github.com/goeckslab/ChatAnalysis
+homepage_url: https://github.com/goeckslab/ChatAnalysis
+long_description: Tools for using large language models to chat with your dataset
+  

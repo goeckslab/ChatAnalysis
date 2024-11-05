@@ -16,6 +16,10 @@ from langchain_groq.chat_models import ChatGroq
 import json
 from dotenv import load_dotenv
 from generate_html_report import generate_html_from_json
+import logging  
+
+logging.basicConfig(level=logging.DEBUG)
+LOG = logging.getLogger(__name__)
 
 st.set_page_config(page_title="Galaxy Chat Analysis", page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favicon.ico'))
 
@@ -90,7 +94,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         #     self.model = "gpt-4o-mini"
         # else:
         
-        llm_choice, model, api_key_user = config.configure_llm_options(openai_api_key, groq_api_key_user)
+        llm_choice, model, api_key_user = config.configure_llm_options(openai_api_key, groq_api_key_user, groq_api_key)
         if llm_choice == "OpenAI":
             self.llm_choice = llm_choice
             self.model = model
@@ -105,7 +109,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
         elif llm_choice == "Groq":
             self.llm_choice = llm_choice
             self.model = "llama-3.2-90b-text-preview"
-            self.api_key = groq_api_key
+            self.api_key = groq_api_key    
         elif llm_choice == "GPT-4o":
             self.llm_choice = "GPT-4o"
             self.model = "gpt-4o"
@@ -321,40 +325,44 @@ if __name__ == "__main__":
     # bamboollm_key_app_file = sys.argv[1] if len(sys.argv) > 1 else None
     # groq_api_key_file = sys.argv[2] if len(sys.argv) > 2 else None
 
+    print(sys.argv)
     openai_api_key_file = sys.argv[1] if len(sys.argv) > 1 else None
-    groq_api_key_user = sys.argv[2] if len(sys.argv) > 2 else None
+    groq_api_key_user_file = sys.argv[2] if len(sys.argv) > 2 else None
     chat_history_html = sys.argv[3] if len(sys.argv) > 3 else None
     output_dataset = sys.argv[4] if len(sys.argv) > 4 else None
     plots_path = sys.argv[5] if len(sys.argv) > 5 else None
     csv_file = sys.argv[6] if len(sys.argv) > 6 else None
-
     
     openai_api_key = None
     groq_api_key_user = None
     bamboollm_key_app = None
     groq_api_key = None
     free_openai_token = None
+
     if openai_api_key_file:
         with open(openai_api_key_file, 'r') as f:
             openai_api_key = f.read().strip()
-    
-    if groq_api_key_user:
-        with open(groq_api_key_user, 'r') as f:
+            
+    if groq_api_key_user_file:
+        with open(groq_api_key_user_file, 'r') as f:
             groq_api_key_user = f.read().strip()
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
-    env_path = os.path.join(script_dir, '.env')     
-    if os.path.exists(env_path):
-        print(".env loaded")
-        load_dotenv(dotenv_path=env_path)
-        if os.getenv("GROQ_API_KEY"):
-            groq_api_key = os.getenv("GROQ_API_KEY")
-        if os.getenv("BAMBOOLLM_API_KEY"):
-            bamboollm_key_app = os.getenv("BAMBOOLLM_API_KEY")
-        if os.getenv("GITHUB_ACCESS_TOKEN"):
-            free_openai_token = os.getenv("GITHUB_ACCESS_TOKEN")
-    # print(groq_api_key)
+    # env_path = os.path.join(script_dir, '.env')     
+    # if os.path.exists(env_path):
+    #     print(".env loaded")
+    #     load_dotenv(dotenv_path=env_path)
+    #     if os.getenv("GROQ_API_KEY"):
+    #         groq_api_key = os.getenv("GROQ_API_KEY")
+    #     if os.getenv("BAMBOOLLM_API_KEY"):
+    #         bamboollm_key_app = os.getenv("BAMBOOLLM_API_KEY")
+    #     if os.getenv("GITHUB_ACCESS_TOKEN"):
+    #         free_openai_token = os.getenv("GITHUB_ACCESS_TOKEN")
+
+    if os.getenv("GROQ_API_KEY_u"):
+        groq_api_key = os.getenv("GROQ_API_KEY_u")
+    print(groq_api_key)
     app = ChatAnalysisApp(csv_file,
                         openai_api_key,
                         bamboollm_key_app,
