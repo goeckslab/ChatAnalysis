@@ -1,7 +1,0 @@
-﻿SAMPLE_ID,Year of ICI treatment start,TMB,PDL1_TPS(%),Systemic_therapy_history,Albumin,CancerType,CancerType_grouped,NLR,Age,FCNA,Drug,Sex,MSI,Stage,HLA_LOH,HED,Platelets,HGB,BMI,PFS_Event,PFS_Months,OS_Event,OS_Months,Response,CancerType1,CancerType2,CancerType3,CancerType4,CancerType5,CancerType6,CancerType7,CancerType8,CancerType9,CancerType10,CancerType11,CancerType12,CancerType13,CancerType14,CancerType15,CancerType16,CancerType17,CancerType18
-1,2017,4.9,,1,3.8,Colorectal,2,7.6,63.74811773,0.0426,0,0,0,1,1,4.495395948,204,10.1,41.8,1,0.919917864,1,5.618069815,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-2,2015,1.0,,0,4.1,Melanoma,0,2.69,58.9650924,0.6496,1,0,0,1,0,0.0,215,12.8,29.1,1,0.558521561,0,50.13552361,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0
-3,2017,6.1,,1,3.9,Hepatobiliary,2,3.32,69.17453799,0.2347,0,0,0,1,0,6.826887661,206,9.6,34.7,1,1.905544148,1,6.045174538,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0
-4,2017,0.0,,0,4.1,Gastric,2,5.21,53.65913758,0.2317,0,1,0,1,0,8.29281768,186,12.2,29.1,1,8.607802875,1,18.82546201,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0
-5,2016,2.0,,1,4.4,Pancreatic,2,2.18,61.78781656,0.6802,0,0,0,1,1,7.200736648,210,12.6,24.6,1,1.248459959,1,2.332648871,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0
-6,2017,4.4,,1,2.9,Renal,2,4.62,54.37645448,0.4478,0,1,0,1,1,8.898710866,297,11.9,24.0,1,1.971252567,1,3.121149897,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0
