@@ -21,12 +21,12 @@
         mkdir -p plots &&
         ln -sf $__tool_directory__/.env /ChatAnalysis/.env &&
         streamlit run /ChatAnalysis/chat_analysis.py
-            $openai_api_key_file
-            $groq_api_key_file 
-            $chat_history
-            $export_csv
-            "`pwd`/plots"
-            $input_dataset
+            "$openai_api_key_file"
+            "$groq_api_key_file"
+            "$chat_history"
+            "$export_csv"
+            "./plots"
+            "$input_dataset"
         ]]>
     </command>
     <configfiles>
