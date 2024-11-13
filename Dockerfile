@@ -2,9 +2,11 @@ FROM python:3.9-slim
 
 WORKDIR /ChatAnalysis
 
-RUN chmod -R 777 /ChatAnalysis
-
 COPY . .
+
+RUN useradd -m appuser
+
+RUN chmod -R 775 /ChatAnalysis && chown -R appuser:appuser /ChatAnalysis
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt

@@ -362,7 +362,6 @@ if __name__ == "__main__":
 
     if os.getenv("GROQ_API_KEY_u"):
         groq_api_key = os.getenv("GROQ_API_KEY_u")
-    print(groq_api_key)
     app = ChatAnalysisApp(csv_file,
                         openai_api_key,
                         bamboollm_key_app,
