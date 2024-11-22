@@ -59,9 +59,7 @@ def configure_llm_options(openai_api_key, groq_api_key_user, groq_api_key):
         "OpenAI",
         "Your-BambooLLM-API-Key" ]
     default_index = 0
-    if not groq_api_key:
-        del available_options[0]
-    if groq_api_key_user:
+    if not groq_api_key or groq_api_key_user:
         del available_options[0]
     elif openai_api_key:
         default_index = 2 if groq_api_key else 1
