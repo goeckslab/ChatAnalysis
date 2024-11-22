@@ -17,9 +17,8 @@
     <command>
         <![CDATA[
         echo "Starting Streamlit" &&
-        echo "Script executed from: `pwd`" &&
+        echo "working dir now: `pwd`" &&
         mkdir -p plots &&
-        ln -sf $__tool_directory__/.env /ChatAnalysis/.env &&
         streamlit run /ChatAnalysis/chat_analysis.py
             "$openai_api_key_file"
             "$groq_api_key_file"
