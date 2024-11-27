@@ -4,9 +4,7 @@ WORKDIR /ChatAnalysis
 
 COPY . .
 
-RUN useradd -m appuser
-
-RUN chmod -R 775 /ChatAnalysis && chown -R appuser:appuser /ChatAnalysis
+RUN chmod -R 777 /ChatAnalysis
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
