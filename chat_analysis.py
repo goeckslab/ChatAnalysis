@@ -108,7 +108,7 @@ The dataset has 10 rows and 13 columns. Columns are: Year, Jan, Feb, Mar, Apr, M
                 self.api_key = bamboollm_key_app
         elif llm_choice == "Groq":
             self.llm_choice = llm_choice
-            self.model = "llama-3.2-90b-text-preview"
+            self.model = "llama-3.2-90b-vision-preview"
             self.api_key = groq_api_key    
         elif llm_choice == "GPT-4o":
             self.llm_choice = "GPT-4o"

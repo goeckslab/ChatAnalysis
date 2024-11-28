@@ -1,68 +1,18 @@
 import json
 import argparse
 import pandas as pd
-import logging  
+import logging
+from weasyprint import HTML
+from pygments import highlight
+from pygments.lexers import PythonLexer
+from pygments.formatters import HtmlFormatter
+import os
 
 logging.basicConfig(level=logging.DEBUG)
 LOG = logging.getLogger(__name__)
 
-# Function to generate a table from a DataFrame
-def dict_to_html_table(data_dict, table_id):
-    # Generate an enhanced HTML table with DataTables JavaScript library for better interactivity
-    html_content = f"""
-    <div class='container'>
-        <h2>Data Table</h2>
-        <div class='table-responsive'>
-            <table id='{table_id}' class='display nowrap' style='width:100%'>
-                <thead>
-                    <tr>
-    """
-    
-    # Add headers dynamically based on keys
-    headers = data_dict.keys()
-    for header in headers:
-        html_content += f"<th>{header}</th>"
-    
-    html_content += """
-                    </tr>
-                </thead>
-                <tbody>
-    """
-
-    # Transpose the dictionary to create rows
-    num_rows = len(next(iter(data_dict.values())))
-    for i in range(num_rows):
-        html_content += "<tr>"
-        for key in data_dict.keys():
-            value = data_dict[key][i]
-            html_content += f"<td>{value}</td>"
-        html_content += "</tr>"
-    
-    html_content += f"""
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <script>
-        $(document).ready(function() {{
-            // Initialize the DataTable with the desired settings
-            $('#{table_id}').DataTable({{
-                "paging": true,
-                "searching": true,
-                "ordering": true,
-                "info": true,
-                "scrollX": true,
-                "lengthMenu": [10, 25, 50, 100] // Options for rows per page selection
-            }});
-        }});
-    </script>
-
-    """
-    
-    return html_content
-
-# Function to generate HTML from JSON chat history and DataFrame
-def generate_html_from_json(json_file, output_html):
+# Function to generate PDF content from JSON chat history
+def generate_html_from_json(json_file, output_pdf):
     # Load chat history from JSON
     with open(json_file, "r") as f:
         chat_history = json.load(f)
@@ -71,189 +21,81 @@ def generate_html_from_json(json_file, output_html):
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
             background-color: #f4f4f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            padding: 20px;
         }
         .container {
-            max-width: 100%;
-            width: 95%;
             background-color: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        .table-responsive {
-            overflow-x: auto;
+            margin-bottom: 20px;
         }
         h2 {
             text-align: center;
             color: #333;
             margin-bottom: 20px;
         }
-        .message-container {
-            margin-bottom: 15px;
-            border-radius: 10px;
-            padding: 10px;
-            max-width: 100%;
-            word-wrap: break-word;
-            background-color: #f0f0f5;
-            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
-        }
-        .user-message {
-            background-color: #d4eaff;
-        }
-        .assistant-message {
-            background-color: #e5e5ea;
-        }
-        .message-container p {
-            margin: 0;
-        }
-        .message-container pre {
+        pre {
             background-color: #282c34;
             color: white;
             padding: 10px;
             border-radius: 5px;
             overflow-x: auto;
+            white-space: pre-wrap; /* Wrap long lines */
         }
         img {
             max-width: 100%;
-            border-radius: 8px;
+            display: block;
+            margin: 20px auto;
         }
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
+        a {
+            color: #007bff;
+            text-decoration: none;
         }
-        .code-block {
-            background-color: #282c34;
-            color: white;
-            padding: 15px;
-            border-radius: 5px;
-            margin-top: 10px;
-            overflow-x: auto;
+        a:hover {
+            text-decoration: underline;
         }
-        .foldable {
-            cursor: pointer;
-            margin-bottom: 10px;
-            padding: 12px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            transition: background-color 0.3s ease, box-shadow 0.3s ease;
-            display: inline-block;
-            text-align: center;
-        }
-
-        .foldable:hover {
-            background-color: #0056b3;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .foldable:active {
-            background-color: #004494;
-            transform: translateY(2px); /* Adds a pressed effect when clicked */
-        }
-        .fold-content {
-            display: none;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            max-width: 95%; /* Ensures it does not exceed the container width */
-            overflow-x: auto; /* Adds horizontal scroll if necessary */
-            word-wrap: break-word; /* Breaks long words */
-            white-space: pre-wrap; /* Preserves formatting while wrapping long lines */
-            
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 25px 0;
-            font-size: 18px;
-            text-align: left;
-        }
-        th, td {
-            padding: 12px;
-            border: 1px solid #ddd;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        </style>
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.css">
-    <script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.js"></script>
-    <script>
-        function toggleFoldable(id) {
-            var content = document.getElementById(id);
-            if (content.style.display === "none" || content.style.display === "") {
-                content.style.display = "block";
-            } else {
-                content.style.display = "none";
-            }
-        }
-    </script>
+    </style>
     """
-
-    # Generate HTML content
-    html_content = f"<html><head>{css_styles}</head><body><div class='container'><h2>Chat History</h2><div class='chat-container'>"
     
+    html_content = f"<html><head>{css_styles}</head><body>"
     for idx, message in enumerate(chat_history):
         role = message["role"].capitalize()
         content = message.get("content", "")
+        html_content += f"<div class='container'><h2>{role}</h2><p>{content}</p>"
+
+        if "code_excuted" in message and message["code_excuted"] is not None:
+            highlighted_code = highlight(
+                message['code_excuted'], PythonLexer(), HtmlFormatter(style="colorful", linenos=True)
+            )
+            html_content += f"<h3>Executed Code:</h3><pre>{highlighted_code}</pre>"
+
+        if "image" in message:
+            # Directly use the Base64 string to embed the image
+            image_base64 = message["image"]
+            html_content += f'<img src="data:image/png;base64,{image_base64}" alt="Generated Plot" />'
+
+        if "content_df" in message:
+            # Save the DataFrame as a CSV file
+            df = pd.DataFrame(message["content_df"])
+            csv_file = f"table_{idx}.csv"
+            df.to_csv(csv_file, index=False)
+            # Add download link for the CSV
+            html_content += f'<p><a href="{csv_file}" download>The answer is a data table. Download Table as CSV</a></p>'
         
-        # Both user and assistant messages are aligned to the left
-        if message["role"] == "user":
-            html_content += f"<div class='message-container user-message'><p><strong>{role}:</strong> {content}</p></div>"
-        else:
-            html_content += f"<div class='message-container assistant-message'><p><strong>{role}:</strong> {content}</p></div>"
+        html_content += "</div>"
 
-            if "code_excuted" in message:
-                html_content += f"<div class='foldable' onclick='toggleFoldable(\"fold-exec-{idx}\")'><strong>Show/Hide Executed Code</strong></div>"
-                html_content += f"<div id='fold-exec-{idx}' class='fold-content'><pre>{message['code_excuted']}</pre></div>"
+    html_content += "</body></html>"
 
-            # If an image is included
-            if "image" in message:
-                html_content += f'<img src="data:image/png;base64,{message["image"]}" alt="Image"/><br>'
-            
-            # If code was generated
-            if "code_generated" in message:
-                html_content += f"<div class='code-block'><pre>{message['code_generated']}</pre></div>"
-
-            # If there's a DataFrame in the message (under 'content_df')
-            if "content_df" in message:
-                # Convert the DataFrame from JSON back to a pandas DataFrame
-                df = pd.DataFrame(message["content_df"])
-                # Convert the DataFrame to a dictionary and generate an enhanced HTML table
-                data_dict = df.to_dict(orient='list')
-                table_id = f"data-table-{idx}"
-                try:
-                    html_content += dict_to_html_table(data_dict, table_id)
-                except Exception as e:
-                    LOG.error(f"Error generating table: {e}")
-
-    html_content += "</div></div></body></html>"
-
-    # Write the HTML content to the output file
-    with open(output_html, "w") as f:
-        f.write(html_content)
-
+    # Convert HTML to PDF
+    HTML(string=html_content, base_url=os.getcwd()).write_pdf(output_pdf)
+    print(f"PDF successfully created at: {output_pdf}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--json-file", help="Path to the JSON file containing the chat history")
-    parser.add_argument("--output-html", help="Path to the output HTML file")
+    parser.add_argument("--json-file", help="Path to the JSON file containing the chat history", required=True)
+    parser.add_argument("--output-pdf", help="Path to the output PDF file", required=True)
     args = parser.parse_args()
     
-    generate_html_from_json(args.json_file, args.output_html)
+    generate_html_from_json(args.json_file, args.output_pdf)

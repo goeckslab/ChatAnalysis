@@ -21,3 +21,6 @@ protype.py
 seq.md
 test.py
 .DS_Store
+*.pdf
+generate_md_report.py
+*.md

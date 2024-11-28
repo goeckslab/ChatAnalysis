@@ -44,16 +44,13 @@
         <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
     </inputs>
     <outputs>
-        <data name="chat_history" format="html" label="${tool.name} -- chat history html on ${on_string}"/>
+        <data name="chat_history" format="pdf" label="${tool.name} -- chat history pdf on ${on_string}"/>
         <data name="export_csv" format="csv" label="${tool.name} -- the exported csv you selected on ${on_string}"/>
-        <collection name="chat_plots" type="list" label="${tool.name} -- the generated plots on ${on_string}" >
-            <discover_datasets pattern="(?P&lt;designation&gt;.+)\.png" format="png" directory="plots" />
-        </collection>
     </outputs>
     <tests>
         <test expect_num_outputs="2">
             <param name="input_dataset" value="test.csv"/>
-            <output name="chat_history" file="chat_history.html" compare="sim_size" />
+            <output name="chat_history" file="chat_history.pdf" compare="sim_size" />
             <output name="export_csv" file="exported.csv" compare="sim_size" />
         </test>
     </tests>
