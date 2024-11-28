@@ -19,3 +19,6 @@ groq_api_key.txt
 !test-data/*.csv
 !test-data/*.tsv
 !test-data/*.html
+*.pdf
+generate_md_report.py
+*.md

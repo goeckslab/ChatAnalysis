@@ -9,3 +9,5 @@ streamlit-aggrid
 langchain-groq	
 python-dotenv
 seaborn
+markdown
+weasyprint

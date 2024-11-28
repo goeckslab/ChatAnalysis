@@ -13,9 +13,9 @@ supported_chat_models = [
 ]
 
 groq_models = [
-    "llama-3.2-90b-text-preview",
     "llama-3.2-90b-vision-preview",
     "llama-3.1-70b-versatile",
+    "llama-3.2-11b-vision-preview",
 ]
 
 
@@ -95,10 +95,7 @@ def display_example_questions():
     with st.sidebar:
         st.divider()
         st.write("You can get your free API key for BambooLLM by signing up at https://pandas-ai.com and your free API key for Groq by signing up at https://groq.com.")
-        
-        
-        st.divider()
-        st.write("You can get your free API key for BambooLLM or Groq signing up at https://pandas-ai.com or https://groq.com")
+        st.write("You can also use the OpenAI API by signing up at https://beta.openai.com/signup/")
         st.divider()
         st.markdown("## Click on an Example Question to Try the App")
     #     example_questions = [
@@ -145,7 +142,6 @@ def display_example_questions():
         example_questions = [
             "Tell me something interesting about the dataset in a plot?",
             "Delete the columns where most of the values are missing and return the modified dataset",
-            "Return the types of columns in a dataframe.",
             "Provide the statistics for each column in a properly formatted DataFrame. The DataFrame must include a column named 'column_name' that contains the name of each column.",
             "Are there any missing values in the dataset? If so, which columns have them?",
             "Create a histogram for any column?",
