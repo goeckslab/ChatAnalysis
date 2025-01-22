@@ -1,13 +1,6 @@
-pandasai == 2.2.14
-pandas == 1.5.3
-numpy == 1.23.0
-pyyaml
+smolagents[litellm]
+matplotlib
+panda
 streamlit
-scikit-learn
-pycaret
-streamlit-aggrid
-langchain-groq	
-python-dotenv
 seaborn
-markdown
-weasyprint
+scikit-learn

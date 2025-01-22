@@ -24,3 +24,5 @@ test.py
 *.pdf
 generate_md_report.py
 *.md
+.venv*
+outputs/*

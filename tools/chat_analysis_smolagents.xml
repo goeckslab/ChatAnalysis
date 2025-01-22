@@ -1,7 +1,7 @@
-<tool id="interactive_tool_chat_analysis_smolagents" tool_type="interactive" name="Chat with your data" version="0.1">
+<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.1">
     <requirements>
         <container type="docker">
-            quay.io/goeckslab/chatanalysis:main
+            quay.io/goeckslab/chatanalysis:smolagents
         </container>
     </requirements>
     <entry_points>
@@ -18,25 +18,9 @@
         <![CDATA[
         echo "Starting Streamlit" &&
         echo "working dir now: `pwd`" &&
-        mkdir -p plots &&
-        streamlit run /ChatAnalysis/chat_analysis.py
-            "$openai_api_key_file"
-            "$groq_api_key_file"
-            "$chat_history"
-            "$export_csv"
-            "./plots"
-            "$input_dataset"
+        streamlit run /ChatAnalysis/smolagents_da.py
         ]]>
     </command>
-    <configfiles>
-        <configfile name="openai_api_key_file"><![CDATA[
-            $__user__.extra_preferences.get('chatgpt|api_key')
-        ]]></configfile>
-        <configfile name="groq_api_key_file"><![CDATA[
-            $__user__.extra_preferences.get('groq|api_key')
-            ]]>
-        </configfile>
-    </configfiles>
     <stdio>
         <exit_code range="0:0" level="log"/>
     </stdio>
@@ -44,10 +28,13 @@
         <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
     </inputs>
     <outputs>
-        <data name="chat_history" format="txt" label="${tool.name}"/>
+        
     </outputs>
     <tests>
-        <test>
+        <test expect_num_outputs="2">
+            <param name="input_dataset" value="test.csv"/>
+            <output name="chat_history" file="chat_history.pdf" compare="sim_size" />
+            <output name="export_csv" file="exported.csv" compare="sim_size" />
         </test>
     </tests>
     <help>

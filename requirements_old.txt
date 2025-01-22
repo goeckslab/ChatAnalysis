@@ -1,0 +1,13 @@
+pandasai == 2.2.14
+pandas == 1.5.3
+numpy == 1.23.0
+pyyaml
+streamlit
+scikit-learn
+pycaret
+streamlit-aggrid
+langchain-groq	
+python-dotenv
+seaborn
+markdown
+weasyprint
