@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libfontconfig1 \
     libfreetype6 \
+    python3-tk \
     && rm -rf /var/lib/apt/lists/*
 
 # Make the working directory writable
