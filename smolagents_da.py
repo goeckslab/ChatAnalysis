@@ -155,25 +155,43 @@ class StreamlitApp:
             logging.error("Error retrieving memory steps: %s", e)
         return middle_steps
 
-    def display_response(self, explanation, plot_paths, file_paths, next_steps_suggestion, middle_steps=""):
+    def display_response(self, explanation, plot_paths, file_paths, next_steps_suggestion, middle_steps="", candidate_solutions=None):
         with st.chat_message("assistant"):
+            # Clean explanation and next steps text.
             explanation = clean_text(explanation)
             next_steps_suggestion = clean_text(next_steps_suggestion)
-            # Display explanation
-            if "count" in explanation and "mean" in explanation and "std" in explanation:
-                st.code(explanation)
+            
+            # If candidate solutions are provided, display them separately.
+            if candidate_solutions is not None:
+                st.markdown("### Candidate Solutions")
+                for idx, candidate in enumerate(candidate_solutions, start=1):
+                    with st.expander(f"Candidate {idx}: {candidate.get('option', 'Option')}"):
+                        st.markdown(f"**Explanation:** {candidate.get('explanation', '')}")
+                        st.markdown(f"**Pros:** {candidate.get('pros', '')}")
+                        st.markdown(f"**Cons:** {candidate.get('cons', '')}")
+                        # A button to allow the user to refine this candidate solution.
+                        if st.button("Refine this solution", key=f"refine_candidate_{idx}"):
+                            # Pre-fill input with candidate details for refinement.
+                            st.session_state["prefilled_input"] = candidate.get("option", "") + " " + candidate.get("explanation", "")
             else:
-                st.markdown(explanation)
-            # Display intermediate steps in an expander if available
+                # Display the explanation text normally.
+                if "count" in explanation and "mean" in explanation and "std" in explanation:
+                    st.code(explanation)
+                else:
+                    st.markdown(explanation)
+            
+            # Display intermediate steps if available.
             if middle_steps:
                 with st.expander("View Intermediate Steps"):
                     st.markdown(middle_steps)
-            # Display plots if any
+            
+            # Display any generated plots.
             for plot_path in plot_paths:
                 if plot_path and os.path.exists(plot_path):
                     image = Image.open(plot_path)
                     st.image(image, caption="Generated Plot")
-            # Display file download buttons if any
+            
+            # Display file download buttons for any generated files.
             for file_path in file_paths:
                 if file_path and os.path.exists(file_path):
                     unique_key = str(uuid.uuid4())
@@ -184,29 +202,65 @@ class StreamlitApp:
                             file_name=os.path.basename(file_path),
                             key=f"download_{unique_key}"
                         )
-            # Convert next steps suggestions into clickable buttons
-            if next_steps_suggestion:
+            
+            # Display clickable next steps suggestions.
+            if not candidate_solutions and next_steps_suggestion:
                 suggestions = [s.strip() for s in next_steps_suggestion.split("\n") if s.strip()]
                 self.display_suggestion_buttons(suggestions)
-                # for i, suggestion in enumerate(suggestions):
-                #     if st.button(suggestion, key=suggestion.replace(' ', '_')):
-                #         temp_file_path = st.session_state.get("temp_file_path", "")
-                #         self.handle_user_input(temp_file_path, suggestion)
                 st.markdown("Please let me know if you want to proceed with any of the suggestions or ask any other questions.")
-            # if next_steps_suggestion:
-            #     suggestion_container = st.empty()
-            #     with suggestion_container.container():
-            #         st.markdown("**Next Steps Suggestion:**")
-            #         suggestions = [s.strip() for s in next_steps_suggestion.split("\n") if s.strip()]
-            #         for suggestion in suggestions:
-            #             # If a button is clicked, clear the container immediately
-            #             if st.button(suggestion, key=f"btn_{suggestion.replace(' ', '_')}"):
-            #                 suggestion_container.empty()  # Remove all suggestion buttons
-            #                 temp_file_path = st.session_state.get("temp_file_path", "")
-            #                 self.handle_user_input(temp_file_path, suggestion)
-            #                 # Optionally, break here to stop processing further buttons
-            #                 break
-            #     st.markdown("Please let me know if you want to proceed with any of the suggestions or ask any other questions.")
+
+    # def display_response(self, explanation, plot_paths, file_paths, next_steps_suggestion, middle_steps=""):
+    #     with st.chat_message("assistant"):
+    #         explanation = clean_text(explanation)
+    #         next_steps_suggestion = clean_text(next_steps_suggestion)
+    #         # Display explanation
+    #         if "count" in explanation and "mean" in explanation and "std" in explanation:
+    #             st.code(explanation)
+    #         else:
+    #             st.markdown(explanation)
+    #         # Display intermediate steps in an expander if available
+    #         if middle_steps:
+    #             with st.expander("View Intermediate Steps"):
+    #                 st.markdown(middle_steps)
+    #         # Display plots if any
+    #         for plot_path in plot_paths:
+    #             if plot_path and os.path.exists(plot_path):
+    #                 image = Image.open(plot_path)
+    #                 st.image(image, caption="Generated Plot")
+    #         # Display file download buttons if any
+    #         for file_path in file_paths:
+    #             if file_path and os.path.exists(file_path):
+    #                 unique_key = str(uuid.uuid4())
+    #                 with open(file_path, "rb") as f:
+    #                     st.download_button(
+    #                         label=f"Download {os.path.basename(file_path)}",
+    #                         data=f,
+    #                         file_name=os.path.basename(file_path),
+    #                         key=f"download_{unique_key}"
+    #                     )
+    #         # Convert next steps suggestions into clickable buttons
+    #         if next_steps_suggestion:
+    #             suggestions = [s.strip() for s in next_steps_suggestion.split("\n") if s.strip()]
+    #             self.display_suggestion_buttons(suggestions)
+    #             # for i, suggestion in enumerate(suggestions):
+    #             #     if st.button(suggestion, key=suggestion.replace(' ', '_')):
+    #             #         temp_file_path = st.session_state.get("temp_file_path", "")
+    #             #         self.handle_user_input(temp_file_path, suggestion)
+    #             st.markdown("Please let me know if you want to proceed with any of the suggestions or ask any other questions.")
+    #         # if next_steps_suggestion:
+    #         #     suggestion_container = st.empty()
+    #         #     with suggestion_container.container():
+    #         #         st.markdown("**Next Steps Suggestion:**")
+    #         #         suggestions = [s.strip() for s in next_steps_suggestion.split("\n") if s.strip()]
+    #         #         for suggestion in suggestions:
+    #         #             # If a button is clicked, clear the container immediately
+    #         #             if st.button(suggestion, key=f"btn_{suggestion.replace(' ', '_')}"):
+    #         #                 suggestion_container.empty()  # Remove all suggestion buttons
+    #         #                 temp_file_path = st.session_state.get("temp_file_path", "")
+    #         #                 self.handle_user_input(temp_file_path, suggestion)
+    #         #                 # Optionally, break here to stop processing further buttons
+    #         #                 break
+    #         #     st.markdown("Please let me know if you want to proceed with any of the suggestions or ask any other questions.")
 
     # def display_chat_history(self):
     #     messages = st.session_state["messages"]
@@ -249,22 +303,87 @@ class StreamlitApp:
     #                 # For previous messages, render suggestions as plain text.
     #                 st.markdown(f"**Next Steps Suggestion:** {message['next_steps_suggestion']}")
 
+    # def display_chat_history(self):
+    #     messages = st.session_state["messages"]
+    #     for idx, message in enumerate(messages):
+    #         with st.chat_message(message["role"]):
+    #             if "count" in message["content"] and "mean" in message["content"] and "std" in message["content"]:
+    #                 st.code(message["content"])
+    #             else:
+    #                 st.markdown(message["content"])
+    #             if "middle_steps" in message and message["middle_steps"]:
+    #                 with st.expander("View Intermediate Steps"):
+    #                     st.markdown(message["middle_steps"])
+    #             if "image_paths" in message:
+    #                 for plot_path in message["image_paths"]:
+    #                     if os.path.exists(plot_path):
+    #                         image = Image.open(plot_path)
+    #                         st.image(image, caption="Generated Plot")
+    #             if "file_paths" in message:
+    #                 for file_path in message["file_paths"]:
+    #                     if os.path.exists(file_path):
+    #                         unique_key = str(uuid.uuid4())
+    #                         with open(file_path, "rb") as f:
+    #                             st.download_button(
+    #                                 label=f"Download {os.path.basename(file_path)}",
+    #                                 data=f,
+    #                                 file_name=os.path.basename(file_path),
+    #                                 key=f"history_download_{unique_key}"
+    #                             )
+    #             if "next_steps_suggestion" in message and message["next_steps_suggestion"] and idx != len(messages) - 1:
+    #                 st.markdown(f"**Next Steps Suggestion:** \n* {message['next_steps_suggestion']}")
+    #             # elif "next_steps_suggestion" in message and idx == len(messages) - 1:
+    #             #     suggestions = [s.strip() for s in message["next_steps_suggestion"].split("\n") if s.strip()]
+    #             #     self.display_suggestion_buttons(suggestions)
+                    
+
+                        
+        # Render suggestion buttons in a dedicated container after the chat history
+        # if messages:
+        #     last_message = messages[-1]
+        #     # Only display suggestion buttons if the last message is from the assistant and has suggestions
+        #     if last_message["role"] == "assistant" and last_message.get("next_steps_suggestion"):
+        #         suggestions = [s.strip() for s in last_message["next_steps_suggestion"].split("\n") if s.strip()]
+        #         self.display_suggestion_buttons(suggestions)
+
     def display_chat_history(self):
-        messages = st.session_state["messages"]
+        messages = st.session_state.get("messages", [])
+        
         for idx, message in enumerate(messages):
+            if not message or not message.get("role") or not message.get("content"):
+                continue
             with st.chat_message(message["role"]):
-                if "count" in message["content"] and "mean" in message["content"] and "std" in message["content"]:
+                # Display the main content.
+                if "count" in message.get("content", "") and "mean" in message.get("content", "") and "std" in message.get("content", ""):
                     st.code(message["content"])
                 else:
                     st.markdown(message["content"])
+
+                # Display candidate solutions if they exist.
+                if "candidate_solutions" in message and message["candidate_solutions"]:
+                    st.markdown("### Candidate Solutions")
+                    for c_idx, candidate in enumerate(message["candidate_solutions"], start=1):
+                        with st.expander(f"Candidate {c_idx}: {candidate.get('option', 'Option')}"):
+                            st.markdown(f"**Explanation:** {candidate.get('explanation', '')}")
+                            st.markdown(f"**Pros:** {candidate.get('pros', '')}")
+                            st.markdown(f"**Cons:** {candidate.get('cons', '')}")
+                            if st.button("Refine this solution", key=f"history_refine_candidate_{idx}_{c_idx}"):
+                                prefill = candidate.get("option", "") + " " + candidate.get("explanation", "")
+                                st.session_state["prefilled_input"] = prefill
+
+                # Display intermediate steps if available.
                 if "middle_steps" in message and message["middle_steps"]:
                     with st.expander("View Intermediate Steps"):
                         st.markdown(message["middle_steps"])
+
+                # Display any generated plots.
                 if "image_paths" in message:
                     for plot_path in message["image_paths"]:
                         if os.path.exists(plot_path):
                             image = Image.open(plot_path)
                             st.image(image, caption="Generated Plot")
+
+                # Display file download buttons for any generated files.
                 if "file_paths" in message:
                     for file_path in message["file_paths"]:
                         if os.path.exists(file_path):
@@ -276,19 +395,14 @@ class StreamlitApp:
                                     file_name=os.path.basename(file_path),
                                     key=f"history_download_{unique_key}"
                                 )
+
+                # Display next steps suggestions.
                 if "next_steps_suggestion" in message and message["next_steps_suggestion"] and idx != len(messages) - 1:
                     st.markdown(f"**Next Steps Suggestion:** \n* {message['next_steps_suggestion']}")
-                # elif "next_steps_suggestion" in message and idx == len(messages) - 1:
-                #     suggestions = [s.strip() for s in message["next_steps_suggestion"].split("\n") if s.strip()]
-                #     self.display_suggestion_buttons(suggestions)
-                    
-
-                        
-        # Render suggestion buttons in a dedicated container after the chat history
         if messages:
             last_message = messages[-1]
             # Only display suggestion buttons if the last message is from the assistant and has suggestions
-            if last_message["role"] == "assistant" and last_message.get("next_steps_suggestion"):
+            if last_message["role"] == "assistant" and last_message.get("next_steps_suggestion") and not last_message.get("candidate_solutions"):
                 suggestions = [s.strip() for s in last_message["next_steps_suggestion"].split("\n") if s.strip()]
                 self.display_suggestion_buttons(suggestions)
 
@@ -336,15 +450,22 @@ class StreamlitApp:
             )
         else:
             return (
-                f"Previous conversation:\n{memory_history}\n\nThe dataset is saved at {temp_file_path}. Current Question:{user_question}\n\n"
-                "- Always suggest possible next steps for data analysis at the end of the answer, unless the user is explicitly asking for suggestions.\n"
+                f"Previous conversation:\n{memory_history}\n\n"
+                f"The dataset is saved at {temp_file_path}. Current Question: {user_question}\n\n"
+                "- Before answering, please analyze the user's question. If you determine the question is multifaceted, ambiguous, or covers several aspects, provide three distinct candidate solutions. For each candidate, include:\n"
+                "   - An 'option' title,\n"
+                "   - A detailed 'explanation',\n"
+                "   - A list of 'pros',\n"
+                "   - A list of 'cons'.\n"
+                "- If the question is straightforward, provide a single concise answer following the standard format. But most questions should be strightforward.\n"
+                "- Always include next step suggestions at the end.\n"
                 "- If a plot or file is generated, save it in the outputs/ directory with a random numerical suffix to prevent overwrites.\n"
                 "- Do not generate filenames like 'random_forest_model_XXXX.joblib'.\n"
-                "- Always call the final_answer tool, providing the final answer in the following dictionary format (do not format as a JSON code block):\n"
-                '{ "explanation": ["Your explanation here, in plain text. This can include detailed information or step-by-step guidance."], '
-                '"plots": ["<path_to_the_image>" (leave empty if no plots are needed)], '
-                '"files": ["<path_to_the_file>" (leave empty if no files are needed)], '
-                '"next_steps_suggestion": ["List of possible next questions the user could ask to gain further insights. They should be questions. Only include this when the user has not explicitly asked for suggestions."] }'
+                "- Always call the final_answer tool, providing the final answer in one of the following dictionary formats (do not format as a JSON code block):\n\n"
+                "Simple answer format:\n"
+                '{ "explanation": ["Your explanation text. in plain text. This can include detailed information or step-by-step guidance."], "plots": ["<path_to_image>"], "files": ["<path_to_file>"], "next_steps_suggestion": ["Suggestion 1", "Suggestion 2"] }\n\n'
+                "Multiple candidate solutions format:\n"
+                '{ "candidate_solutions": [ { "option": "Solution 1", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." }, { "option": "Solution 2", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." }, { "option": "Solution 3", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." } ], "next_steps_suggestion": ["Which option would you like to refine?", "Or ask for more details on a candidate solution."] }'
             )
 
     def handle_user_input(self, temp_file_path, user_question):
@@ -536,38 +657,34 @@ class StreamlitApp:
 
 
     def process_response(self, response, middle_steps=""):
-    # Case 1: Check if response is an object with 'role' and 'content' attributes.
+        # Case 1: Response is an object with 'role' and 'content' attributes.
         if hasattr(response, 'role') and hasattr(response, 'content'):
             role = getattr(response, 'role', 'assistant')
             content = getattr(response, 'content', '')
             parsed_message = self.parse_response_content(content)
             if parsed_message:
-                # If candidate solutions are present in the parsed message.
                 if "candidate_solutions" in parsed_message:
-                    explanation_text = "Multiple candidate solutions generated:\n\n"
-                    for idx, candidate in enumerate(parsed_message["candidate_solutions"], start=1):
-                        explanation_text += f"**Candidate {idx}:**\n"
-                        explanation_text += f"Option: {candidate.get('option', 'N/A')}\n"
-                        explanation_text += f"Explanation: {candidate.get('explanation', '')}\n"
-                        explanation_text += f"Pros: {candidate.get('pros', '')}\n"
-                        explanation_text += f"Cons: {candidate.get('cons', '')}\n\n"
+                    candidate_list = parsed_message["candidate_solutions"]
                     next_steps = "  \n* ".join(parsed_message.get("next_steps_suggestion", []))
+                    # Display candidate solutions
                     self.display_response(
-                        explanation=explanation_text,
+                        explanation="Multiple candidate solutions generated.",
                         plot_paths=[],
                         file_paths=[],
                         next_steps_suggestion=next_steps,
-                        middle_steps=middle_steps
+                        middle_steps=middle_steps,
+                        candidate_solutions=candidate_list
                     )
                     st.session_state["messages"].append({
                         "role": role,
-                        "content": explanation_text,
+                        "content": "Multiple candidate solutions generated.",
+                        "candidate_solutions": candidate_list,
                         "image_paths": [],
                         "file_paths": [],
                         "next_steps_suggestion": next_steps,
                         "middle_steps": middle_steps
                     })
-                    st.session_state["memory"].append(f"{role.capitalize()}: {explanation_text}")
+                    st.session_state["memory"].append(f"{role.capitalize()}: Multiple candidate solutions generated.")
                 else:
                     message = {
                         "explanation": parsed_message.get("explanation", ""),
@@ -599,41 +716,39 @@ class StreamlitApp:
                     "role": role,
                     "content": f"Response received:\n\n{content}\n"
                 })
+
         # Case 2: Response is a dictionary.
         elif isinstance(response, dict):
             if "candidate_solutions" in response:
-                explanation_text = "Multiple candidate solutions generated:\n\n"
-                for idx, candidate in enumerate(response["candidate_solutions"], start=1):
-                    explanation_text += f"**Candidate {idx}:**\n"
-                    explanation_text += f"Option: {candidate.get('option', 'N/A')}\n"
-                    explanation_text += f"Explanation: {candidate.get('explanation', '')}\n"
-                    explanation_text += f"Pros: {candidate.get('pros', '')}\n"
-                    explanation_text += f"Cons: {candidate.get('cons', '')}\n\n"
+                candidate_list = response["candidate_solutions"]
                 next_steps = "  \n* ".join(response.get("next_steps_suggestion", []))
                 self.display_response(
-                    explanation=explanation_text,
+                    explanation="",
                     plot_paths=[],
                     file_paths=[],
                     next_steps_suggestion=next_steps,
-                    middle_steps=middle_steps
+                    middle_steps=middle_steps,
+                    candidate_solutions=candidate_list
                 )
                 st.session_state["messages"].append({
                     "role": "assistant",
-                    "content": explanation_text,
+                    "content": "Multiple candidate solutions generated.",
+                    "candidate_solutions": candidate_list,
                     "image_paths": [],
                     "file_paths": [],
                     "next_steps_suggestion": next_steps,
                     "middle_steps": middle_steps
                 })
-                st.session_state["memory"].append(f"Assistant: {explanation_text}")
+                st.session_state["memory"].append("Assistant: Multiple candidate solutions generated.")
             else:
                 message = {
-                    "explanation": response.get("explanation", ""),
+                    "explanation": "\n".join(response.get("explanation", [])),
                     "plots": response.get("plots", []),
                     "files": response.get("files", []),
-                    "next_steps_suggestion": response.get("next_steps_suggestion", ""),
+                    "next_steps_suggestion":  "  \n* ".join(response.get("next_steps_suggestion", [])),
                     "middle_steps": middle_steps
                 }
+                # st.markdown(message["explanation"])
                 if not message["plots"] and not message["files"]:
                     message["explanation"] += "\nLLM did not generate any plots or files."
                 self.display_response(
@@ -651,7 +766,8 @@ class StreamlitApp:
                     "next_steps_suggestion": message["next_steps_suggestion"],
                     "middle_steps": message["middle_steps"]
                 })
-                st.session_state["memory"].append(f"Assistant: {message['explanation']}")
+                st.session_state["memory"].append("Assistant: " + message["explanation"])
+
         # Case 3: Response is a plain string.
         elif isinstance(response, str):
             parsed_message = self.parse_response_content(response)
@@ -662,12 +778,14 @@ class StreamlitApp:
                     "role": "assistant",
                     "content": f"Response received:\n\n{response}\n"
                 })
+
         # Fallback: Any other type.
         else:
             st.session_state["messages"].append({
                 "role": "assistant",
                 "content": f"Response received:\n\n{response}\n"
             })
+
 
 
     def has_eda_history(self):
