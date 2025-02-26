@@ -34,9 +34,10 @@ def create_agent(api_key, model_id):
         tools=[],
         model=model,
         additional_authorized_imports=[
-            "pandas", "numpy", "matplotlib",
+            "pandas", "numpy", "matplotlib", "seaborn", "scipy", "statsmodels",
             "sklearn", "pycaret", "plotly", "joblib", "io"
         ],
+        max_steps=20,
     )
 
 # def clean_text(text):
@@ -79,7 +80,7 @@ def clean_text(text):
 class StreamlitApp:
     def __init__(self, agent):
         self.agent = agent
-        self.output_dir = "outputs"
+        self.output_dir = "outputs_smolagents"
         os.makedirs(self.output_dir, exist_ok=True)
         if "memory" not in st.session_state:
             st.session_state["memory"] = deque(maxlen=15)
@@ -413,12 +414,13 @@ class StreamlitApp:
 
         st.markdown("**Next Steps Suggestion:**")
         
-        for suggestion in suggestions:
+        try:
+            for idx, suggestion in enumerate(suggestions):
             # Make the text clickable and store the suggestion in session state
-            if st.button(f"{suggestion}", key=f"suggestion_{suggestion.replace(' ', '_')}"):
-                st.session_state["prefilled_input"] = suggestion
-
-
+                if st.button(f"{suggestion}", key=f"suggestion_{suggestion.replace(' ', '_')}_{idx}"):
+                    st.session_state["prefilled_input"] = suggestion
+        except Exception as e:
+            logging.error("Error displaying suggestion buttons: %s", e)
 
     def get_agent_prompt(self, temp_file_path, user_question):
         memory_history = ""
@@ -426,6 +428,8 @@ class StreamlitApp:
             memory_history = "\n".join(st.session_state["memory"])
         if "exploratory data analysis" in user_question.lower():
             return (
+                "You are an expert assistant who can solve any task using code blobs." 
+                "To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences."
                 f"The dataset is saved at {temp_file_path}. {user_question}\n\n"
                 "- Always suggest possible next steps for data analysis at the end of the answer, unless the user is explicitly asking for suggestions.\n"
                 "- If a plot or file is generated, save it in the outputs/ directory with a random numerical suffix to prevent overwrites.\n"
@@ -438,6 +442,8 @@ class StreamlitApp:
             )
         elif "Summarize the previous conversation in a concise manner." in user_question.lower():
             return (
+                "You are an expert assistant who can solve any task using code blobs." 
+                "To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences."
                 f"Previous conversation:\n{memory_history}\n\nCurrent Question:{user_question}\n\n"
                 "- Always suggest possible next steps for data analysis at the end of the answer, unless the user is explicitly asking for suggestions.\n"
                 "- If a plot or file is generated, save it in the outputs/ directory with a random numerical suffix to prevent overwrites.\n"
@@ -451,6 +457,8 @@ class StreamlitApp:
         else:
             return (
                 f"Previous conversation:\n{memory_history}\n\n"
+                "You are an expert assistant who can solve any task using code blobs." 
+                "To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences."
                 f"The dataset is saved at {temp_file_path}. Current Question: {user_question}\n\n"
                 "- Before answering, please analyze the user's question. If you determine the question is multifaceted, ambiguous, or covers several aspects, provide three distinct candidate solutions. For each candidate, include:\n"
                 "   - An 'option' title,\n"
@@ -493,65 +501,68 @@ class StreamlitApp:
             "Any insights?"
         )
         with st.spinner("Running EDA..."):
-            eda_response = self.agent.run(self.get_agent_prompt(temp_file_path, eda_query))
-            parsed = self.parse_response_content(eda_response)
-            middle_steps = self.format_memory_steps()
-            if parsed and parsed.get("explanation"):
-                report_text = "\n".join(parsed["explanation"])
-            else:
-                report_text = "Try click the button again to run EDA."
-            # report_text = clean_text(report_text)
-            
-            html_content = "<html><head><title>EDA Report</title></head><body>"
-            html_content += "<h1>Exploratory Data Analysis Report</h1>"
-            html_content += f"<h2>Report Summary</h2><p>{report_text.replace(chr(10), '<br>')}</p>"
-            if parsed and parsed.get("plots"):
-                html_content += "<h2>Visualizations</h2>"
-                for plot_path in parsed["plots"]:
-                    if os.path.exists(plot_path):
-                        with open(plot_path, "rb") as img_file:
-                            encoded_string = base64.b64encode(img_file.read()).decode('utf-8')
-                        html_content += f'<div><img src="data:image/png;base64,{encoded_string}" style="max-width:600px;"></div><br/>'
-            if parsed and parsed.get("next_steps_suggestion"):
-                html_content += "<h2>Next Steps Suggestions</h2><ul>"
-                for suggestion in parsed["next_steps_suggestion"]:
-                    html_content += f"<li>{suggestion}</li>"
-                html_content += "</ul>"
-            html_content += "</body></html>"
+            try:
+                eda_response = self.agent.run(self.get_agent_prompt(temp_file_path, eda_query))
+                parsed = self.parse_response_content(eda_response)
+                middle_steps = self.format_memory_steps()
+                if parsed and parsed.get("explanation"):
+                    report_text = "\n".join(parsed["explanation"])
+                else:
+                    report_text = "Try click the button again to run EDA."
+                # report_text = clean_text(report_text)
+                
+                html_content = "<html><head><title>EDA Report</title></head><body>"
+                html_content += "<h1>Exploratory Data Analysis Report</h1>"
+                html_content += f"<h2>Report Summary</h2><p>{report_text.replace(chr(10), '<br>')}</p>"
+                if parsed and parsed.get("plots"):
+                    html_content += "<h2>Visualizations</h2>"
+                    for plot_path in parsed["plots"]:
+                        if os.path.exists(plot_path):
+                            with open(plot_path, "rb") as img_file:
+                                encoded_string = base64.b64encode(img_file.read()).decode('utf-8')
+                            html_content += f'<div><img src="data:image/png;base64,{encoded_string}" style="max-width:600px;"></div><br/>'
+                if parsed and parsed.get("next_steps_suggestion"):
+                    html_content += "<h2>Next Steps Suggestions</h2><ul>"
+                    for suggestion in parsed["next_steps_suggestion"]:
+                        html_content += f"<li>{suggestion}</li>"
+                    html_content += "</ul>"
+                html_content += "</body></html>"
 
-            # Save the EDA report to an HTML file.
-            eda_file_path = os.path.join(self.output_dir, "eda_report.html")
-            with open(eda_file_path, "w", encoding="utf-8") as f:
-                f.write(html_content)
-            st.session_state["eda_report"] = eda_file_path
+                # Save the EDA report to an HTML file.
+                eda_file_path = os.path.join(self.output_dir, "eda_report.html")
+                with open(eda_file_path, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                st.session_state["eda_report"] = eda_file_path
 
-            st.success("EDA complete! Download the report below:")
-            st.download_button(
-                label="Download EDA Report",
-                data=html_content,
-                file_name="eda_report.html",
-                mime="text/html"
-            )
+                st.success("EDA complete! Download the report below:")
+                st.download_button(
+                    label="Download EDA Report",
+                    data=html_content,
+                    file_name="eda_report.html",
+                    mime="text/html"
+                )
 
-            eda_result_message = {
-                "role": "assistant",
-                "content": report_text,
-                "image_paths": parsed.get("plots", []) if parsed else [],
-                "file_paths": parsed.get("files", []) if parsed else [],
-                "next_steps_suggestion": "  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
-                "middle_steps": middle_steps
-            }
-            st.session_state["messages"].append(eda_result_message)
-            st.session_state["memory"].append(f"Assistant (EDA): {report_text}")
+                eda_result_message = {
+                    "role": "assistant",
+                    "content": report_text,
+                    "image_paths": parsed.get("plots", []) if parsed else [],
+                    "file_paths": parsed.get("files", []) if parsed else [],
+                    "next_steps_suggestion": "  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
+                    "middle_steps": middle_steps
+                }
+                st.session_state["messages"].append(eda_result_message)
+                st.session_state["memory"].append(f"Assistant (EDA): {report_text}")
 
-            self.display_response(
-                explanation=report_text,
-                plot_paths=parsed.get("plots", []) if parsed else [],
-                file_paths=parsed.get("files", []) if parsed else [],
-                next_steps_suggestion="  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
-                middle_steps=middle_steps
-            )
-            self.save_chat_history()
+                self.display_response(
+                    explanation=report_text,
+                    plot_paths=parsed.get("plots", []) if parsed else [],
+                    file_paths=parsed.get("files", []) if parsed else [],
+                    next_steps_suggestion="  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
+                    middle_steps=middle_steps
+                )
+                self.save_chat_history()
+            except Exception as e:
+                st.error(f"Error during EDA: {e}")
 
     def summarize_chat_history(self):
         summary_prompt = "Summarize the previous conversation in a concise manner.\n"
