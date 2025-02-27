@@ -10,6 +10,8 @@ from smolagents import CodeAgent, LiteLLMModel
 import json
 import uuid
 import logging
+import sqlite3
+import sys
 
 # Set logging level to DEBUG for detailed logs
 # logging.basicConfig(level=logging.DEBUG)
@@ -76,9 +78,54 @@ def clean_text(text):
 
     return "\n".join(cleaned_lines)
 
+def init_feedback_db(db_path="feedback.db"):
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS message_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            feedback TEXT NOT NULL,
+            comment TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def store_message_feedback(user_id, question, answer, feedback, comment="", db_path="feedback.db"):
+    """
+    Insert a new feedback record and return its row ID.
+    """
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO message_feedback (user_id, question, answer, feedback, comment) VALUES (?, ?, ?, ?, ?)",
+        (user_id, question, answer, feedback, comment)
+    )
+    conn.commit()
+    feedback_id = c.lastrowid
+    conn.close()
+    return feedback_id
+
+def update_feedback_comment(feedback_id, comment, db_path="feedback.db"):
+    """
+    Update the comment for an existing feedback record.
+    """
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute("UPDATE message_feedback SET comment = ? WHERE id = ?", (comment, feedback_id))
+    conn.commit()
+    conn.close()
+
+
+
 
 class StreamlitApp:
-    def __init__(self, agent):
+    def __init__(self, agent, user_id):
+        self.user_id = user_id
         self.agent = agent
         self.output_dir = "outputs_smolagents"
         os.makedirs(self.output_dir, exist_ok=True)
@@ -98,7 +145,9 @@ class StreamlitApp:
         history = {
             "messages": st.session_state.get("messages", []),
             "eda_report": st.session_state.get("eda_report", ""),
-            "memory": list(st.session_state.get("memory", []))
+            "memory": list(st.session_state.get("memory", [])),
+            "feedback_submitted": { key: st.session_state[key] for key in st.session_state if key.startswith("feedback_submitted_") },
+            "feedback_ids": { key: st.session_state[key] for key in st.session_state if key.startswith("feedback_id_") }
         }
         with open("chat_history.json", "w") as f:
             json.dump(history, f)
@@ -112,7 +161,11 @@ class StreamlitApp:
                 st.session_state["eda_report"] = history.get("eda_report", "")
                 memory_list = history.get("memory", [])
                 st.session_state["memory"] = deque(memory_list, maxlen=15)
-
+                for key, value in history.get("feedback_submitted", {}).items():
+                    st.session_state[key] = value
+                for key, value in history.get("feedback_ids", {}).items():
+                    st.session_state[key] = value
+    
     def load_dataset_preview(self):
         if os.path.exists("uploaded_dataset.csv"):
             return pd.read_csv("uploaded_dataset.csv")
@@ -155,6 +208,19 @@ class StreamlitApp:
         except Exception as e:
             logging.error("Error retrieving memory steps: %s", e)
         return middle_steps
+
+
+    def submit_feedback_response(self, feedback, msg_idx):
+        messages = st.session_state.get("messages", [])
+        if msg_idx > 0 and messages[msg_idx - 1]["role"] == "user":
+            question = messages[msg_idx - 1]["content"]
+        else:
+            question = "Unknown question"
+        answer = messages[msg_idx]["content"]
+        feedback_id = store_message_feedback(self.user_id, question, answer, feedback)
+        st.session_state[f"feedback_submitted_{msg_idx}"] = True
+        st.session_state[f"feedback_id_{msg_idx}"] = feedback_id
+        self.save_chat_history()
 
     def display_response(self, explanation, plot_paths, file_paths, next_steps_suggestion, middle_steps="", candidate_solutions=None):
         with st.chat_message("assistant"):
@@ -209,6 +275,21 @@ class StreamlitApp:
                 suggestions = [s.strip() for s in next_steps_suggestion.split("\n") if s.strip()]
                 self.display_suggestion_buttons(suggestions)
                 st.markdown("Please let me know if you want to proceed with any of the suggestions or ask any other questions.")
+
+            msg_idx = len(st.session_state["messages"])
+            if not st.session_state.get(f"feedback_submitted_{msg_idx}", False):
+                col1, col2 = st.columns(2)
+                # The on_click callback immediately stores the feedback.
+                col1.button("👍", key=f"thumbs_up_{msg_idx}", on_click=self.submit_feedback_response, args=("Yes", msg_idx))
+                col2.button("👎", key=f"thumbs_down_{msg_idx}", on_click=self.submit_feedback_response, args=("No", msg_idx))
+            else:
+                st.info("Feedback recorded!")
+                # Allow the user to add or update an optional comment.
+                comment = st.text_area("Optional comment:", key=f"feedback_comment_{msg_idx}")
+                if st.button("Update Comment", key=f"update_comment_{msg_idx}"):
+                    feedback_id = st.session_state.get(f"feedback_id_{msg_idx}")
+                    update_feedback_comment(feedback_id, comment)
+                    st.success("Comment updated!")
 
     # def display_response(self, explanation, plot_paths, file_paths, next_steps_suggestion, middle_steps=""):
     #     with st.chat_message("assistant"):
@@ -400,6 +481,22 @@ class StreamlitApp:
                 # Display next steps suggestions.
                 if "next_steps_suggestion" in message and message["next_steps_suggestion"] and idx != len(messages) - 1:
                     st.markdown(f"**Next Steps Suggestion:** \n* {message['next_steps_suggestion']}")
+                
+                if message["role"] == "assistant":
+                # If feedback hasn't been submitted for this message, show the thumbs buttons.
+                    if not st.session_state.get(f"feedback_submitted_{idx}", False):
+                        col1, col2 = st.columns(2)
+                        col1.button("👍", key=f"thumbs_up_{idx}", on_click=self.submit_feedback_response, args=("Yes", idx))
+                        col2.button("👎", key=f"thumbs_down_{idx}", on_click=self.submit_feedback_response, args=("No", idx))
+                        
+                    else:
+                        st.info("Feedback recorded!")
+                        st.write(st.session_state.get(f"feedback_submitted_{idx}"))
+                        comment = st.text_area("Optional comment:", key=f"feedback_comment_{idx}")
+                        if st.button("Update Comment", key=f"update_comment_{idx}"):
+                            feedback_id = st.session_state.get(f"feedback_id_{idx}")
+                            update_feedback_comment(feedback_id, comment)
+                            st.success("Comment updated!")
         if messages:
             last_message = messages[-1]
             # Only display suggestion buttons if the last message is from the assistant and has suggestions
@@ -885,6 +982,13 @@ class StreamlitApp:
             st.info("Please upload a dataset.")
 
 def main():
+
+    user_id = sys.argv[1] if len(sys.argv) > 1 else None
+    if not user_id:
+        st.error("No user ID provided. Please provide a user ID as a command-line argument.")
+        return
+
+    init_feedback_db()
     st.title("Data Analysis Agent")
     st.sidebar.title("Configuration")
     MODEL_OPTIONS = {
@@ -934,7 +1038,7 @@ def main():
 
     if "api_key" in st.session_state and st.session_state["api_key"]:
         agent = create_agent(st.session_state["api_key"], st.session_state["selected_model"])
-        app = StreamlitApp(agent=agent)
+        app = StreamlitApp(agent=agent, user_id=user_id)
         app.run()
     else:
         st.sidebar.warning("Please enter the required API Key to use the app.")
