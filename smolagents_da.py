@@ -130,7 +130,7 @@ class StreamlitApp:
         self.output_dir = "outputs_smolagents"
         os.makedirs(self.output_dir, exist_ok=True)
         if "memory" not in st.session_state:
-            st.session_state["memory"] = deque(maxlen=15)
+            st.session_state["memory"] = deque(maxlen=30)
 
     def load_dataset(self, file):
         if file.name.endswith(".csv"):
@@ -491,7 +491,6 @@ class StreamlitApp:
                         
                     else:
                         st.info("Feedback recorded!")
-                        st.write(st.session_state.get(f"feedback_submitted_{idx}"))
                         comment = st.text_area("Optional comment:", key=f"feedback_comment_{idx}")
                         if st.button("Update Comment", key=f"update_comment_{idx}"):
                             feedback_id = st.session_state.get(f"feedback_id_{idx}")
