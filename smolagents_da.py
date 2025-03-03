@@ -132,13 +132,56 @@ class StreamlitApp:
         if "memory" not in st.session_state:
             st.session_state["memory"] = deque(maxlen=30)
 
-    def load_dataset(self, file):
+    # def load_dataset(self, file):
+    #     if file.name.endswith(".csv"):
+    #         return pd.read_csv(file)
+    #     elif file.name.endswith(".tsv"):
+    #         return pd.read_csv(file, sep="\t")
+    #     else:
+    #         raise ValueError("Unsupported file format. Please provide a CSV or TSV file.")
+
+    def load_dataset(file):
         if file.name.endswith(".csv"):
             return pd.read_csv(file)
         elif file.name.endswith(".tsv"):
             return pd.read_csv(file, sep="\t")
+        elif file.name.endswith(".h5ad"):
+            import anndata
+            return anndata.read_h5ad(file)
+        elif file.name.endswith((".xlsx", ".xls")):
+            return pd.read_excel(file)
+        elif file.name.endswith(".json"):
+            return pd.read_json(file)
+        elif file.name.endswith(".parquet"):
+            return pd.read_parquet(file)
+        elif file.name.endswith(".h5"):
+            return pd.read_hdf(file)
+        elif file.name.endswith((".fa", ".fasta")):
+            # For FASTA files, parse using Biopython's SeqIO.
+            from Bio import SeqIO
+            return list(SeqIO.parse(file, "fasta"))
+        elif file.name.endswith(".vcf"):
+            # For VCF files, use pysam to return a VariantFile object.
+            import pysam
+            return pysam.VariantFile(file)
+        elif file.name.endswith((".gtf", ".gff")):
+            # For GTF/GFF files, create an in-memory database using gffutils.
+            import gffutils
+            db = gffutils.create_db(
+                file,
+                dbfn=":memory:",
+                force=True,
+                keep_order=True,
+                merge_strategy="merge",
+                sort_attribute_values=True
+            )
+            return db
+        elif file.name.endswith(".bed"):
+            # BED files can be loaded into a pandas DataFrame.
+            return pd.read_csv(file, sep="\t", header=None)
         else:
-            raise ValueError("Unsupported file format. Please provide a CSV or TSV file.")
+            raise ValueError("Unsupported file format. Please provide a supported data file.")
+
 
     # --- Modified: Save chat history including memory ---
     def save_chat_history(self):
