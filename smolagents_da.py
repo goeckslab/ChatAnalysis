@@ -46,17 +46,6 @@ def create_agent(api_key, model_id):
         max_steps=20,
     )
 
-# def clean_text(text):
-#     lines = text.splitlines()
-#     cleaned_lines = []
-#     for line in lines:
-#         tokens = line.split()
-#         if tokens and all(len(token) == 1 for token in tokens):
-#             cleaned_lines.append("".join(tokens))
-#         else:
-#             cleaned_lines.append(line)
-#     return "\n".join(cleaned_lines)
-
 def fix_code_block_formatting(text):
     """
     Inserts a newline after any occurrence of triple backticks (```)
@@ -65,23 +54,6 @@ def fix_code_block_formatting(text):
     # The negative lookahead (?!\n) makes sure we only match when there isn't a newline
     fixed_text = re.sub(r"```(?!\n)", "```\n", text)
     return fixed_text
-
-# def fix_code_block_formatting(text):
-#     """
-#     Ensures that any code block opening (e.g. "```", "```js", etc.) is immediately followed by a newline,
-#     except for code blocks that begin with "```py", which are left unchanged.
-#     """
-#     def replacement(match):
-#         full_opening = match.group(1)  # e.g. "```py" or "```js" or "```"
-#         lang = match.group(2)          # e.g. "py", "js", or ""
-#         if lang.lower() == "py":
-#             return full_opening  # Leave it unchanged.
-#         else:
-#             return full_opening + "\n"  # Insert a newline.
-    
-#     # The pattern captures the triple backticks plus any word characters (the language) as group 2.
-#     fixed_text = re.sub(r"(```(\w*))(?!\n)", replacement, text)
-    # return fixed_text
 
 def split_text_preserving_order(text):
     """
@@ -255,14 +227,6 @@ class StreamlitApp:
         self.dataset_file_path = dataset_file_path
         self.chat_hisory_file = chat_history_file
         self.input_data_type = input_data_type
-
-    # def load_dataset(self, file):
-    #     if file.name.endswith(".csv"):
-    #         return pd.read_csv(file)
-    #     elif file.name.endswith(".tsv"):
-    #         return pd.read_csv(file, sep="\t")
-    #     else:
-    #         raise ValueError("Unsupported file format. Please provide a CSV or TSV file.")
 
     def load_dataset(self, file):
         path = Path(file)
@@ -441,15 +405,6 @@ class StreamlitApp:
                     continue
                 step_number = step.get("step") or idx
                 middle_steps += f"##### Step {step_number}:\n\n"
-                # if step.get("system_prompt"):
-                #     middle_steps += f"System Prompt: {step['system_prompt']}\n"
-                # if step.get("tool_calls"):
-                #     tool_names = []
-                #     for tc in step["tool_calls"]:
-                #         if isinstance(tc, dict) and "function" in tc and "name" in tc["function"]:
-                #             tool_names.append(tc["function"]["name"])
-                #     if tool_names:
-                #         middle_steps += f"Tool Call(s): {', '.join(tool_names)}\n"
                 
                 if step.get("model_output"):
                     middle_steps += f"**Model Output**:\n\n {step['model_output']}\n\n"
@@ -462,14 +417,6 @@ class StreamlitApp:
                 middle_steps += "\n\n"
 
                 middle_steps = fix_code_block_formatting(middle_steps)
-
-                # segments = split_text_preserving_order(middle_steps)
-                # steps_list.append({
-                #     "step_number": idx,
-                #     "segments": segments
-                # })
-            # print("replying")
-            # self.agent.replay()
             
         except Exception as e:
             logging.error("Error retrieving memory steps: %s", e)
@@ -591,142 +538,6 @@ class StreamlitApp:
                         update_feedback_comment(feedback_id, comment)
                         st.success("Comment updated!")
 
-    # def display_response(self, explanation, plot_paths, file_paths, next_steps_suggestion, middle_steps=""):
-    #     with st.chat_message("assistant"):
-    #         explanation = clean_text(explanation)
-    #         next_steps_suggestion = clean_text(next_steps_suggestion)
-    #         # Display explanation
-    #         if "count" in explanation and "mean" in explanation and "std" in explanation:
-    #             st.code(explanation)
-    #         else:
-    #             st.markdown(explanation)
-    #         # Display intermediate steps in an expander if available
-    #         if middle_steps:
-    #             with st.expander("View Intermediate Steps"):
-    #                 st.markdown(middle_steps)
-    #         # Display plots if any
-    #         for plot_path in plot_paths:
-    #             if plot_path and os.path.exists(plot_path):
-    #                 image = Image.open(plot_path)
-    #                 st.image(image, caption="Generated Plot")
-    #         # Display file download buttons if any
-    #         for file_path in file_paths:
-    #             if file_path and os.path.exists(file_path):
-    #                 unique_key = str(uuid.uuid4())
-    #                 with open(file_path, "rb") as f:
-    #                     st.download_button(
-    #                         label=f"Download {os.path.basename(file_path)}",
-    #                         data=f,
-    #                         file_name=os.path.basename(file_path),
-    #                         key=f"download_{unique_key}"
-    #                     )
-    #         # Convert next steps suggestions into clickable buttons
-    #         if next_steps_suggestion:
-    #             suggestions = [s.strip() for s in next_steps_suggestion.split("\n") if s.strip()]
-    #             self.display_suggestion_buttons(suggestions)
-    #             # for i, suggestion in enumerate(suggestions):
-    #             #     if st.button(suggestion, key=suggestion.replace(' ', '_')):
-    #             #         temp_file_path = st.session_state.get("temp_file_path", "")
-    #             #         self.handle_user_input(temp_file_path, suggestion)
-    #             st.markdown("Please let me know if you want to proceed with any of the suggestions or ask any other questions.")
-    #         # if next_steps_suggestion:
-    #         #     suggestion_container = st.empty()
-    #         #     with suggestion_container.container():
-    #         #         st.markdown("**Next Steps Suggestion:**")
-    #         #         suggestions = [s.strip() for s in next_steps_suggestion.split("\n") if s.strip()]
-    #         #         for suggestion in suggestions:
-    #         #             # If a button is clicked, clear the container immediately
-    #         #             if st.button(suggestion, key=f"btn_{suggestion.replace(' ', '_')}"):
-    #         #                 suggestion_container.empty()  # Remove all suggestion buttons
-    #         #                 temp_file_path = st.session_state.get("temp_file_path", "")
-    #         #                 self.handle_user_input(temp_file_path, suggestion)
-    #         #                 # Optionally, break here to stop processing further buttons
-    #         #                 break
-    #         #     st.markdown("Please let me know if you want to proceed with any of the suggestions or ask any other questions.")
-
-    # def display_chat_history(self):
-    #     messages = st.session_state["messages"]
-    #     for idx, message in enumerate(messages):
-    #         # Render the chat message content in its own chat block.
-    #         with st.chat_message(message["role"]):
-    #             if "count" in message["content"] and "mean" in message["content"] and "std" in message["content"]:
-    #                 st.code(message["content"])
-    #             else:
-    #                 st.markdown(message["content"])
-    #             if "middle_steps" in message and message["middle_steps"]:
-    #                 with st.expander("View Intermediate Steps"):
-    #                     st.markdown(message["middle_steps"])
-    #             if "image_paths" in message:
-    #                 for plot_path in message["image_paths"]:
-    #                     if os.path.exists(plot_path):
-    #                         image = Image.open(plot_path)
-    #                         st.image(image, caption="Generated Plot")
-    #             if "file_paths" in message:
-    #                 for file_path in message["file_paths"]:
-    #                     if os.path.exists(file_path):
-    #                         unique_key = str(uuid.uuid4())
-    #                         with open(file_path, "rb") as f:
-    #                             st.download_button(
-    #                                 label=f"Download {os.path.basename(file_path)}",
-    #                                 data=f,
-    #                                 file_name=os.path.basename(file_path),
-    #                                 key=f"history_download_{unique_key}"
-    #                             )
-    #         # For suggestions, only render clickable buttons for the last message.
-    #         if "next_steps_suggestion" in message and message["next_steps_suggestion"]:
-    #             if idx == len(messages) - 1:
-    #                 st.markdown("**Next Steps Suggestion:**")
-    #                 suggestions = [s.strip() for s in message["next_steps_suggestion"].split("\n") if s.strip()]
-    #                 for suggestion in suggestions:
-    #                     if st.button(suggestion, key=f"last_{suggestion.replace(' ', '_')}"):
-    #                         temp_file_path = st.session_state.get("temp_file_path", "")
-    #                         self.handle_user_input(temp_file_path, suggestion)
-    #             else:
-    #                 # For previous messages, render suggestions as plain text.
-    #                 st.markdown(f"**Next Steps Suggestion:** {message['next_steps_suggestion']}")
-
-    # def display_chat_history(self):
-    #     messages = st.session_state["messages"]
-    #     for idx, message in enumerate(messages):
-    #         with st.chat_message(message["role"]):
-    #             if "count" in message["content"] and "mean" in message["content"] and "std" in message["content"]:
-    #                 st.code(message["content"])
-    #             else:
-    #                 st.markdown(message["content"])
-    #             if "middle_steps" in message and message["middle_steps"]:
-    #                 with st.expander("View Intermediate Steps"):
-    #                     st.markdown(message["middle_steps"])
-    #             if "image_paths" in message:
-    #                 for plot_path in message["image_paths"]:
-    #                     if os.path.exists(plot_path):
-    #                         image = Image.open(plot_path)
-    #                         st.image(image, caption="Generated Plot")
-    #             if "file_paths" in message:
-    #                 for file_path in message["file_paths"]:
-    #                     if os.path.exists(file_path):
-    #                         unique_key = str(uuid.uuid4())
-    #                         with open(file_path, "rb") as f:
-    #                             st.download_button(
-    #                                 label=f"Download {os.path.basename(file_path)}",
-    #                                 data=f,
-    #                                 file_name=os.path.basename(file_path),
-    #                                 key=f"history_download_{unique_key}"
-    #                             )
-    #             if "next_steps_suggestion" in message and message["next_steps_suggestion"] and idx != len(messages) - 1:
-    #                 st.markdown(f"**Next Steps Suggestion:** \n* {message['next_steps_suggestion']}")
-    #             # elif "next_steps_suggestion" in message and idx == len(messages) - 1:
-    #             #     suggestions = [s.strip() for s in message["next_steps_suggestion"].split("\n") if s.strip()]
-    #             #     self.display_suggestion_buttons(suggestions)
-                    
-
-                        
-        # Render suggestion buttons in a dedicated container after the chat history
-        # if messages:
-        #     last_message = messages[-1]
-        #     # Only display suggestion buttons if the last message is from the assistant and has suggestions
-        #     if last_message["role"] == "assistant" and last_message.get("next_steps_suggestion"):
-        #         suggestions = [s.strip() for s in last_message["next_steps_suggestion"].split("\n") if s.strip()]
-        #         self.display_suggestion_buttons(suggestions)
 
     def display_chat_history(self):
         messages = st.session_state.get("messages", [])
@@ -840,11 +651,6 @@ class StreamlitApp:
 
     def get_agent_prompt(self, dataset_path, user_question):
         
-        # dataset_info = ""
-        # if self.dataset_file:
-        #     dataset_info = f"The dataset is saved at {dataset_reference}."
-        # else:
-        #     dataset_info = f"The dataset is stored in the database and can be accessed via {dataset_reference}."
     
         memory_history = ""
         if st.session_state.get("memory"):
@@ -1014,81 +820,6 @@ class StreamlitApp:
         except json.JSONDecodeError as e:
             logging.error("JSON decode error: %s", e)
             return None
-
-    # def process_response(self, response, middle_steps=""):
-    #     if isinstance(response, dict):
-    #         message = {
-    #             "explanation": "\n".join(response.get("explanation", [])),
-    #             "plots": response.get("plots", []),
-    #             "files": response.get("files", []),
-    #             "next_steps_suggestion": "  \n* ".join(response.get("next_steps_suggestion", [])),
-    #             "middle_steps": middle_steps
-    #         }
-    #         if not message["plots"] and not message["files"]:
-    #             message["explanation"] += "\nLLM did not generate any plots or files."
-    #         self.display_response(
-    #             message["explanation"],
-    #             message["plots"],
-    #             message["files"],
-    #             message["next_steps_suggestion"],
-    #             message["middle_steps"]
-    #         )
-    #         st.session_state["messages"].append({
-    #             "role": "assistant",
-    #             "content": message["explanation"],
-    #             "image_paths": message["plots"],
-    #             "file_paths": message["files"],
-    #             "next_steps_suggestion": message["next_steps_suggestion"],
-    #             "middle_steps": message["middle_steps"]
-    #         })
-    #         st.session_state["memory"].append(f"Assistant: {message['explanation']}")
-    #     elif isinstance(response, str):
-    #         parsed_message = self.parse_response_content(response)
-    #         if parsed_message:
-    #             self.process_response(parsed_message, middle_steps)
-    #         else:
-    #             st.session_state["messages"].append({
-    #                 "role": "assistant",
-    #                 "content": f"Response received:\n```json\n{response}\n```"
-    #             })
-    #     elif hasattr(response, 'role') and hasattr(response, 'content'):
-    #         role = getattr(response, 'role', 'assistant')
-    #         content = getattr(response, 'content', '')
-    #         parsed_message = self.parse_response_content(content)
-    #         if parsed_message:
-    #             message = parsed_message
-    #             if not message["plots"] and not message["files"]:
-    #                 message["explanation"] += "\nLLM did not generate any plots or files."
-    #         else:
-    #             message = {
-    #                 "explanation": content + "\nLLM did not generate any plots or files.",
-    #                 "plots": [],
-    #                 "files": [],
-    #                 "next_steps_suggestion": "",
-    #                 "middle_steps": ""
-    #             }
-    #         self.display_response(
-    #             message["explanation"],
-    #             message["plots"],
-    #             message["files"],
-    #             message["next_steps_suggestion"],
-    #             middle_steps
-    #         )
-    #         st.session_state["messages"].append({
-    #             "role": role,
-    #             "content": message["explanation"],
-    #             "image_paths": message["plots"],
-    #             "file_paths": message["files"],
-    #             "next_steps_suggestion": message["next_steps_suggestion"],
-    #             "middle_steps": middle_steps
-    #         })
-    #         st.session_state["memory"].append(f"{role.capitalize()}: {message['explanation']}")
-    #     else:
-    #         st.session_state["messages"].append({
-    #             "role": "assistant",
-    #             "content": f"Response received:\n```json\n{response}\n```"
-    #         })
-
 
     def process_response(self, response, middle_steps=""):
         # Case 1: Response is an object with 'role' and 'content' attributes.
