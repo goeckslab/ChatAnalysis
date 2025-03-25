@@ -292,7 +292,7 @@ jobs:
   deploy:
     name: Deploy
     needs: [setup, lint, combine_outputs]
-    if: ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/galaxy-integration' ) && github.repository_owner == 'goeckslab' }}
+    if: ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/galaxy-integration' || github.ref == 'refs/heads/smolagents-release') && github.repository_owner == 'goeckslab' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
