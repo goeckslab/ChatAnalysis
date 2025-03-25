@@ -1,7 +1,7 @@
-<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.1">
+<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.2">
     <requirements>
         <container type="docker">
-            quay.io/goeckslab/chatanalysis:main
+            quay.io/goeckslab/chatanalysis:smolagents
         </container>
     </requirements>
     <entry_points>
@@ -18,14 +18,18 @@
         <![CDATA[
         echo "Starting Streamlit" &&
         echo "working dir now: `pwd`" &&
-        mkdir -p plots &&
-        streamlit run /ChatAnalysis/chat_analysis.py
+        mkdir -p generate_files &&
+        echo "input dataset: $input_dataset" &&
+        echo "input dataset datatype: $dataset_type" &&
+        ln -sf $__tool_directory__/.env /ChatAnalysis/.env &&
+        streamlit run /ChatAnalysis/smolagents_da.py
+            "$__user_email__"
             "$openai_api_key_file"
             "$groq_api_key_file"
             "$chat_history"
-            "$export_csv"
-            "./plots"
+            "./generate_files"
             "$input_dataset"
+            "$dataset_type"
         ]]>
     </command>
     <configfiles>
@@ -41,17 +45,32 @@
         <exit_code range="0:0" level="log"/>
     </stdio>
     <inputs>
-        <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
+        <param name="input_dataset"  type="data" format="csv,tsv,h5ad,xlsx,xls,json,parquet,h5,fa,fasta,vcf,gtf,gff,bed" label="Data you want to chat with" optional="false"/>
+        <param name="dataset_type" type="select" label="The type of your dataset" >
+            <option value="csv">csv</option>
+            <option value="tsv">tsv</option>
+            <option value="h5ad">h5ad</option>
+            <option value="xlsx">xlsx</option>
+            <option value="xls">xls</option>
+            <option value="json">json</option>
+            <option value="parquet">parquet</option>
+            <option value="h5">h5</option>
+            <option value="fa">fa</option>
+            <option value="fasta">fasta</option>
+            <option value="vcf">vcf</option>
+            <option value="gtf">gtf</option>
+            <option value="gff">gff</option>
+            <option value="bed">bed</option>
+        </param>  
     </inputs>
     <outputs>
-        <data name="chat_history" format="pdf" label="${tool.name} -- chat history pdf on ${on_string}"/>
-        <data name="export_csv" format="csv" label="${tool.name} -- the exported csv you selected on ${on_string}"/>
+        <data name="chat_history" format="json" label="${tool.name} -- chat history json on ${on_string} -- use to restore chat history next time"/>
+        <collection name="generate_files" type="list" label="${tool.name} -- generated files">
+            <discover_datasets pattern="__name_and_ext__" directory="generate_files" />
+        </collection>
     </outputs>
     <tests>
-        <test expect_num_outputs="2">
-            <param name="input_dataset" value="test.csv"/>
-            <output name="chat_history" file="chat_history.pdf" compare="sim_size" />
-            <output name="export_csv" file="exported.csv" compare="sim_size" />
+        <test>
         </test>
     </tests>
     <help>

@@ -8,10 +8,12 @@ on:
     branches:
       - galaxy-integration
       - main
+      - smolagents-release
   push:
     branches:
       - galaxy-integration
       - main
+      - smolagents-release
     paths-ignore:
       - '.github/**'
       - 'deprecated/**'
@@ -47,7 +49,7 @@ jobs:
       commit-range: ${{ steps.discover.outputs.commit-range }}
     strategy:
       matrix:
-        python-version: ['3.7']
+        python-version: ['3.10']
     steps:
     - name: Print github context properties
       run: |
@@ -111,7 +113,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.7']
+        python-version: ['3.10']
     steps:
     - uses: actions/checkout@v3
       with:
@@ -142,7 +144,7 @@ jobs:
         fail-level: ${{ env.FAIL_LEVEL }}
         repository-list: ${{ needs.setup.outputs.repository-list }}
         tool-list: ${{ needs.setup.outputs.tool-list }}
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: ${{ failure() }}
       with:
         name: 'Tool linting output'
@@ -169,7 +171,7 @@ jobs:
           cat file_size_report.txt
           exit 1
         fi
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: ${{ failure() }}
       with:
         name: 'File size report'
@@ -186,7 +188,7 @@ jobs:
       fail-fast: false
       matrix:
         chunk: ${{ fromJson(needs.setup.outputs.chunk-list) }}
-        python-version: ['3.7']
+        python-version: ['3.10']
     services:
       postgres:
         image: postgres:11
@@ -233,7 +235,7 @@ jobs:
         galaxy-slots: ${{ steps.cpu-cores.outputs.count }}
         # Limit each test to 15 minutes
         test_timeout: 1800
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: 'Tool test output ${{ matrix.chunk }}'
         path: upload
@@ -250,9 +252,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.7']
+        python-version: ['3.10']
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         path: artifacts
     - uses: actions/setup-python@v4
@@ -270,7 +272,7 @@ jobs:
       with:
         mode: combine
         html-report: true
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: 'All tool test results'
         path: upload
@@ -290,11 +292,11 @@ jobs:
   deploy:
     name: Deploy
     needs: [setup, lint, combine_outputs]
-    if: ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/galaxy-integration' ) && github.repository_owner == 'goeckslab' }}
+    if: ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/galaxy-integration' || github.ref == 'refs/heads/smolagents-release') && github.repository_owner == 'goeckslab' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.7']
+        python-version: ['3.10']
     steps:
     - uses: actions/checkout@v3
       with:
