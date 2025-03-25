@@ -1,11 +1,11 @@
-<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.1">
+<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data using smolagents" version="0.1">
     <requirements>
         <container type="docker">
             quay.io/goeckslab/chatanalysis:smolagents
         </container>
     </requirements>
     <entry_points>
-        <entry_point name="Chat with $input_dataset.element_identifier" requires_domain="True">
+        <entry_point name="Chat with" requires_domain="True">
             <port>
                 8501
             </port>
@@ -25,16 +25,13 @@
         <exit_code range="0:0" level="log"/>
     </stdio>
     <inputs>
-        <param name="input_dataset"  type="data" format="csv,tabular" label="Data(csv or tsv) you want to chat with" optional="false"/>
     </inputs>
     <outputs>
-        
+        <data name="chat_history" format="pdf" label="Chat History" />
     </outputs>
     <tests>
         <test expect_num_outputs="2">
-            <param name="input_dataset" value="test.csv"/>
             <output name="chat_history" file="chat_history.pdf" compare="sim_size" />
-            <output name="export_csv" file="exported.csv" compare="sim_size" />
         </test>
     </tests>
     <help>

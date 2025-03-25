@@ -26,3 +26,5 @@ generate_md_report.py
 *.md
 .venv*
 outputs/*
+smolagents_analysis.py
+smolagents_data_analysis.py

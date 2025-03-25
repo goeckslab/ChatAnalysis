@@ -1,15 +1,13 @@
 streamlit
 pandas
 python-dotenv
-smolagents[litellm]
+smolagents[litellm]==1.9.2
+scikit-learn
 Pillow
-numpy
+numpy>=1.24.0
 matplotlib
 seaborn
 scipy
-statsmodels
-scikit-learn
-pycaret
 plotly
 joblib
 anndata
@@ -19,3 +17,7 @@ tables
 biopython
 pysam
 gffutils
+xgboost
+lightgbm
+catboost
+psycopg2-binary
