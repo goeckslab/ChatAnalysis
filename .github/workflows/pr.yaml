@@ -8,10 +8,12 @@ on:
     branches:
       - galaxy-integration
       - main
+      - smolagents-release
   push:
     branches:
       - galaxy-integration
       - main
+      - smolagents-release
     paths-ignore:
       - '.github/**'
       - 'deprecated/**'
