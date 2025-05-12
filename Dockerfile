@@ -21,11 +21,13 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /ChatAnalysis
 
+ENV STREAMLIT_HOME=/ChatAnalysis/.streamlit
+
 # Copy all project files into the container
 COPY . .
 
 # Upgrade pip to get the latest binary wheels
-RUN pip install --upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
 
 # Install Python dependencies from requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
