@@ -17,9 +17,71 @@ import psycopg2
 # Set logging level to DEBUG for detailed logs
 # logging.basicConfig(level=logging.DEBUG)
 
+OPENAI_API_KEY_FILE = "user_config_openai.key"
+GROQ_API_KEY_FILE = "user_config_groq.key"
+
 load_dotenv()
 
-st.set_page_config(page_title="Galaxy Chat Analysis", page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favicon.ico'))
+st.set_page_config(
+    page_title="Galaxy Chat Analysis",
+    page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'favicon.ico'),
+    layout="wide",)
+
+st.markdown("""
+<style>
+    /* Target the specific section you identified (e.g., the second one) */
+    div[data-testid="stAppViewContainer"] > section:nth-of-type(2) {
+        max-width: 60% !important;   /* << ADJUST THIS VALUE to your desired width */
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-left: 2.5rem;           /* Optional: Adjust side padding */
+        padding-right: 2.5rem;          /* Optional: Adjust side padding */
+        /* You can add a light border here too if you want to see its final bounds, e.g.: */
+        /* border: 1px solid lightgrey !important; */
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+    /* General style for all navigation links to ensure consistency */
+    [data-testid="stSidebarNav"] ul li a {
+        display: block; /* Makes the entire area clickable and styleable */
+        padding: 0.5rem 0.75rem; /* Adjust padding: top/bottom left/right */
+        margin-bottom: 0.2rem; /* Space between items */
+        border-radius: 0.375rem; /* Rounded corners */
+        transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, border-left 0.2s ease-in-out;
+        color: #4A5568; /* Default text color for non-active items (a grayish tone) */
+        text-decoration: none; /* Remove underline from links */
+        border-left: 4px solid transparent; /* Placeholder for active border */
+    }
+
+    /* Style for the CURRENTLY ACTIVE navigation link */
+    [data-testid="stSidebarNav"] ul li a[aria-current="page"] {
+        background-color: #4299E1 !important; /* A brighter, more prominent blue */
+        color: white !important;             /* White text for contrast */
+        font-weight: 700 !important;         /* Even bolder */
+        border-left: 4px solid #2B6CB0 !important; /* Prominent left border (darker blue) */
+    }
+
+    /* Hover effect for NON-ACTIVE links */
+    [data-testid="stSidebarNav"] ul li a:not([aria-current="page"]):hover {
+        background-color: #E2E8F0; /* Light gray background on hover */
+        color: #2B6CB0 !important; /* Darker blue text on hover */
+        border-left: 4px solid #A0AEC0; /* Subtle border on hover for non-active */
+    }
+
+    /* Optional: Slightly dim non-active links if you want extreme focus on active */
+    /*
+    [data-testid="stSidebarNav"] ul li a:not([aria-current="page"]) {
+        opacity: 0.75;
+    }
+    [data-testid="stSidebarNav"] ul li a:not([aria-current="page"]):hover {
+        opacity: 1;
+    }
+    */
+</style>
+""", unsafe_allow_html=True)
 
 st.markdown(
     """
@@ -45,6 +107,42 @@ def create_agent(api_key, model_id):
         ],
         max_steps=20,
     )
+
+# Place these functions globally
+
+def save_key_to_specific_file(file_path: str, key_value: str):
+    """Saves a key to a specific text file. Overwrites existing file."""
+    try:
+        # Ensure the directory exists if file_path includes directories
+        dir_name = os.path.dirname(file_path)
+        if dir_name: # If there's a directory part
+            os.makedirs(dir_name, exist_ok=True)
+            
+        with open(file_path, "w") as f:
+            f.write(key_value)
+        logging.info(f"API key saved to {file_path}")
+    except Exception as e:
+        logging.error(f"Error saving API key to {file_path}: {e}")
+
+def load_key_from_specific_file(file_path: str) -> str | None:
+    """Loads an API key from a specific text file. Returns None if error or not found."""
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, "r") as f:
+                key = f.read().strip()
+                if key:  # Ensure the key is not just whitespace
+                    logging.info(f"API key loaded from {file_path}")
+                    return key
+                else:
+                    logging.info(f"{file_path} exists but is empty or contains only whitespace.")
+                    # Optionally, you could delete an empty key file here if desired:
+                    # os.remove(file_path)
+                    # logging.info(f"Removed empty key file: {file_path}")
+        else:
+            logging.info(f"Local API key file not found: {file_path}")
+    except Exception as e:
+        logging.error(f"Error loading API key from {file_path}: {e}")
+    return None
 
 def fix_code_block_formatting(text):
     """
@@ -230,6 +328,9 @@ class StreamlitApp:
         self.chat_hisory_file = chat_history_file
         self.input_data_type = input_data_type
 
+        self.current_data_object = None # Will store the loaded pandas DataFrame, AnnData, etc.
+        self.summary_stats_csv_path = None
+
     def load_dataset(self, file):
         path = Path(file)
         input_data_type = st.session_state.get("input_data_type", "csv")
@@ -239,7 +340,6 @@ class StreamlitApp:
             return pd.read_csv(file)
 
         elif input_data_type == "tsv":
-            st.info("TSV file detected.")
             self.dataset_file = True
             df = pd.read_csv(file, sep="\t")
             return df
@@ -295,6 +395,33 @@ class StreamlitApp:
         else:
             raise ValueError("Unsupported file format. Please provide a supported data file.")
 
+
+    def generate_and_save_pandas_summary_csv(self, data) -> str | None:
+        if data is None or not isinstance(data, pd.DataFrame):
+            logging.warning("Attempted to generate pandas summary, but current_data_object is not a DataFrame.")
+            return None
+
+        dataframe = data
+        original_filename_for_summary = "dataset" # Default
+        current_dataset_path = st.session_state.get("analysis_file_path")
+        if current_dataset_path:
+            original_filename_for_summary = os.path.splitext(os.path.basename(current_dataset_path))[0]
+
+        try:
+            summary_df = dataframe.describe(include='all')
+            
+            summary_filename = f"summary_stats_for_{original_filename_for_summary}_{uuid.uuid4().hex[:6]}.csv"
+            os.makedirs(self.output_dir, exist_ok=True) # Ensure output dir exists
+            summary_csv_path = os.path.join(self.output_dir, summary_filename)
+            
+            summary_df.to_csv(summary_csv_path, index=True) 
+            logging.info(f"Pandas summary statistics saved to: {summary_csv_path}")
+            return summary_csv_path
+        except Exception as e:
+            logging.error(f"Error generating/saving pandas summary CSV for {original_filename_for_summary}: {e}", exc_info=True)
+            return None
+        
+
     def preview_dataset(self, file):
         try:
             
@@ -341,12 +468,41 @@ class StreamlitApp:
             
             else:
                 st.warning("Preview not supported for this file type.")
+            
+            current_data_type = self.input_data_type
+            pandas_compatible_types = ['csv', 'tsv', 'xlsx', 'xls', 'json', 'parquet', 'h5', 'bed']
+            if current_data_type in pandas_compatible_types and isinstance(data, pd.DataFrame):
+                generated_summary_path = self.generate_and_save_pandas_summary_csv(data)
+                
+                if generated_summary_path:
+                    self.summary_stats_csv_path = generated_summary_path # Store path
+                    st.markdown("#### Summary Statistics")
+                    try:
+                        # Read with index_col=0 because df.describe() often has meaningful row labels (like 'count', 'mean')
+                        summary_display_df = pd.read_csv(self.summary_stats_csv_path, index_col=0) 
+                        st.dataframe(summary_display_df)
+                        
+                        with open(self.summary_stats_csv_path, "rb") as f_summary:
+                            st.download_button(
+                                label=f"Download Summary Statistics CSV",
+                                data=f_summary,
+                                file_name=os.path.basename(self.summary_stats_csv_path),
+                                mime="text/csv",
+                                key=f"download_summary_csv_{uuid.uuid4().hex}"
+                            )
+                    except Exception as e_read_summary:
+                        st.error(f"Could not display saved summary statistics CSV: {e_read_summary}")
+                        logging.error(f"Error reading summary CSV {self.summary_stats_csv_path}: {e_read_summary}", exc_info=True)
+                else:
+                    pass
+            # else:
+                    # logging.info(f"Data type {current_data_type} not eligible for automatic pandas summary CSV display.")
+                    # self.summary_stats_csv_path = None # Ensure it's cleared if not applicable
             return True
         except Exception as e:
             st.error(f"Error previewing dataset: {e}")
 
 
-    # --- Modified: Save chat history including memory ---
     def save_chat_history(self):
         history = {
             "messages": st.session_state.get("messages", []),
@@ -385,6 +541,7 @@ class StreamlitApp:
                     st.session_state["eda_report"] = ""
                     st.session_state["memory"] = deque(maxlen=15)
                     st.session_state["bookmarks"] = []
+        
     
     def display_bookmark_manager(self):
         st.title( "Bookmark Manager")
@@ -582,11 +739,11 @@ class StreamlitApp:
                 st.session_state["bookmarks"].append(bookmark_data)
                 st.session_state["messages"][msg_idx]["bookmarked"] = True
                 self.save_chat_history()
+                st.rerun()
                 st.success("Response bookmarked!")
 
             
-            # if st.session_state.get("db_available", False):
-            if True:
+            if st.session_state.get("db_available", False):
                 if not st.session_state.get(f"feedback_submitted_{msg_idx}", False):
                     col1, col2 = st.columns(2)
                     # The on_click callback immediately stores the feedback.
@@ -680,8 +837,7 @@ class StreamlitApp:
                 
                 if message["role"] == "assistant":
                 # If feedback hasn't been submitted for this message, show the thumbs buttons.
-                    # if st.session_state.get("db_available", False):
-                    if True:
+                    if st.session_state.get("db_available", False):
                         if not st.session_state.get(f"feedback_submitted_{idx}", False):
                             col1, col2 = st.columns(2)
                             col1.button("👍", key=f"thumbs_up_{idx}", on_click=self.submit_feedback_response, args=("Yes", idx))
@@ -713,6 +869,7 @@ class StreamlitApp:
                             # mark in-place so button won’t reappear
                             st.session_state["messages"][idx]["bookmarked"] = True
                             self.save_chat_history()
+                            st.rerun()
                             st.success("Response bookmarked!")
                     else:
                         st.markdown("✅ Bookmarked")
@@ -753,7 +910,7 @@ class StreamlitApp:
             return (
                 "You are an expert data analysis assistant who can solve any task using code blobs." 
                 "To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences.\n\n"
-                f"```The dataset is saved at {dataset_path} and please ignore the file extension of the file name, and use the dataset type: {self.input_data_type} to determine how to read the dataset. {user_question}```\n\n"
+                f"```The dataset is saved at {dataset_path}. This is a {self.input_data_type} file. Please ignore the file extension of the file name, and use the dataset type: {self.input_data_type} to determine how to read the dataset. {user_question}. You must generate plots to answer this question!```\n\n"
                 "- Always suggest possible next steps for data analysis at the end of the answer, unless the user is explicitly asking for suggestions.\n"
                 f"- You should find an appropriate method to generate plots for this query. If a plot or file is generated, save it in the directory {self.output_dir} with a random numerical suffix to prevent overwrites.\n"
                 "- Do not generate filenames like 'random_forest_model_XXXX.joblib'.\n"
@@ -784,7 +941,7 @@ class StreamlitApp:
                 f"Previous conversation:\n{memory_history}\n\n"
                 "You are an expert data analysis assistant who can solve any task using code blobs." 
                 "To solve the task, you must plan forward to proceed in a series of steps, in a cycle of 'Thought:', 'Code:', and 'Observation:' sequences.\n\n"
-                f"```The dataset is saved at {dataset_path} and please ignore the file extension of the file name, and use the dataset type: {self.input_data_type} to determine how to read the dataset. Current Question: {user_question}```\n\n"
+                f"```The dataset is saved at {dataset_path}. This is a {self.input_data_type} file. Please ignore the file extension of the file name, and use the dataset type: {self.input_data_type} to determine how to read the dataset. Current Question: {user_question}```\n\n"
                 "- Before answering, please analyze the user's question. If you determine the question is multifaceted, ambiguous, or covers several aspects, provide three distinct candidate solutions. For each candidate, include:\n"
                 "   - An 'option' title,\n"
                 "   - A detailed 'explanation',\n"
@@ -827,6 +984,11 @@ class StreamlitApp:
             "Show the distribution of numerical features."
             "Any insights?"
         )
+        eda_display_query = "Perform a comprehensive exploratory data analysis (EDA) on the provided dataset."
+        with st.chat_message("user"):
+            st.markdown(eda_display_query)
+        st.session_state["messages"].append({"role": "user", "content": eda_display_query})
+        st.session_state["memory"].append(f"User: {eda_display_query}")
         with st.spinner("Running EDA..."):
             try:
                 eda_response = self.agent.run(self.get_agent_prompt(temp_file_path, eda_query, question_type=0))
@@ -861,19 +1023,22 @@ class StreamlitApp:
                     f.write(html_content)
                 st.session_state["eda_report"] = eda_file_path
 
-                st.success("EDA complete! Download the report below:")
-                st.download_button(
-                    label="Download EDA Report",
-                    data=html_content,
-                    file_name="eda_report.html",
-                    mime="text/html"
-                )
+                # st.success("EDA complete! Download the report below:")
+                # st.download_button(
+                #     label="Download EDA Report",
+                #     data=html_content,
+                #     file_name="eda_report.html",
+                #     mime="text/html"
+                # )
+
+                file_paths = parsed.get("files", [])
+                file_paths = [eda_file_path] + file_paths
 
                 eda_result_message = {
                     "role": "assistant",
                     "content": report_text,
                     "image_paths": parsed.get("plots", []) if parsed else [],
-                    "file_paths": parsed.get("files", []) if parsed else [],
+                    "file_paths": file_paths,
                     "next_steps_suggestion": "  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
                     "middle_steps": middle_steps
                 }
@@ -883,7 +1048,7 @@ class StreamlitApp:
                 self.display_response(
                     explanation=report_text,
                     plot_paths=parsed.get("plots", []) if parsed else [],
-                    file_paths=parsed.get("files", []) if parsed else [],
+                    file_paths=file_paths,
                     next_steps_suggestion="  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
                     middle_steps=middle_steps
                 )
@@ -1061,22 +1226,6 @@ class StreamlitApp:
         return False
 
     def run(self):
-        main_content_placeholder = st.empty()
-        view = st.sidebar.radio(
-            "📂 View",
-            ["Chat", "Bookmarks"],
-            index=0,             # default to Chat
-            key="main_view"      # ensures state tracking
-        )
-
-        # st.sidebar.write(f"▶ DEBUG – view = {view!r}")
-
-        if view == "Bookmarks":
-            with main_content_placeholder.container():
-                st.error("for debugging only: bookmark view")
-                self.display_bookmark_manager()
-            st.stop()
-        st.error("Debug: Entering chat logic")
   
         if "messages" not in st.session_state:
             st.session_state["messages"] = []
@@ -1090,9 +1239,9 @@ class StreamlitApp:
             st.session_state["eda_report"] = ""
 
         # Load existing EDA report if it exists.
-        # eda_path = os.path.join(self.output_dir, "eda_report.html")
-        # if os.path.exists(eda_path):
-        #     st.session_state["eda_report"] = eda_path
+        eda_path = os.path.join(self.output_dir, "eda_report.html")
+        if os.path.exists(eda_path):
+            st.session_state["eda_report"] = eda_path
         
         # Determine which dataset to use.
         uploaded_file = None
@@ -1155,17 +1304,17 @@ class StreamlitApp:
             # elif not self.has_eda_history():
             #     self.run_eda(temp_file_path)
 
-            # st.write("You can now interact with the chatbot to ask questions about the dataset.")
+            st.write("You can now interact with the chatbot to ask questions about the dataset.")
             
             if os.path.exists(st.session_state["analysis_file_path"]):
-                if st.sidebar.button("Summary Statistics", key="summary_stats"):
-                    self.handle_user_input(st.session_state["analysis_file_path"], "What are the summary statistics for the dataset? return a csv file containing the summary statistics.")
-                if st.sidebar.button("Missing Values", key="missing_values"):
-                    self.handle_user_input(st.session_state["analysis_file_path"], "What are the missing values in the dataset?")
                 if st.sidebar.button("Correlation Matrix", key="corr_matrix"):
                     self.handle_user_input(st.session_state["analysis_file_path"], "Show the correlation matrix of the features.")
+                if st.sidebar.button("Missing Values", key="missing_values"):
+                    self.handle_user_input(st.session_state["analysis_file_path"], "What are the missing values in the dataset?")
                 if st.sidebar.button("Numerical Feature Distribution", key="num_dist"):
                     self.handle_user_input(st.session_state["analysis_file_path"], "Show the distribution of numerical features.")
+                # if st.sidebar.button("Summary Statistics", key="summary_stats"):
+                #     self.handle_user_input(st.session_state["analysis_file_path"], "What are the summary statistics for the dataset? return a csv file containing the summary statistics.")
 
             st.sidebar.markdown("---")
             st.sidebar.markdown("### Summarize Chat History")
@@ -1175,11 +1324,14 @@ class StreamlitApp:
         else:
             st.info("Please upload a dataset.")
 
+
 def main():
 
+    print(sys.argv[:])
+
     user_id = sys.argv[1] if len(sys.argv) > 1 else None
-    openai_api_key_file = sys.argv[2] if len(sys.argv) > 2 else None
-    groq_api_key_file = sys.argv[3] if len(sys.argv) > 3 else None
+    cli_openai_key_file_path = sys.argv[2] if len(sys.argv) > 2 else None
+    cli_groq_key_file_path = sys.argv[3] if len(sys.argv) > 3 else None
     chat_history_path = sys.argv[4] if len(sys.argv) > 4 else None
     generate_file_path = sys.argv[5] if len(sys.argv) > 5 else None
     input_file_path = sys.argv[6] if len(sys.argv) > 6 else None
@@ -1189,16 +1341,16 @@ def main():
         st.error("No user ID provided. Please provide a user ID as a command-line argument.")
         return
     
-    openai_api_key = None
-    if openai_api_key_file:
-        with open(openai_api_key_file, "r") as f:
-            openai_api_key = f.read().strip()
-        st.session_state["openai_api_key"] = openai_api_key
-    groq_api_key = None
-    if groq_api_key_file:
-        with open(groq_api_key_file, "r") as f:
-            groq_api_key = f.read().strip()
-        st.session_state["groq_api_key"] = groq_api_key
+    # openai_api_key = None
+    # if openai_api_key_file:
+    #     with open(openai_api_key_file, "r") as f:
+    #         openai_api_key = f.read().strip()
+    #     st.session_state["openai_api_key"] = openai_api_key
+    # groq_api_key = None
+    # if groq_api_key_file:
+    #     with open(groq_api_key_file, "r") as f:
+    #         groq_api_key = f.read().strip()
+    #     st.session_state["groq_api_key"] = groq_api_key
 
     if chat_history_path:
         st.session_state["chat_history_path"] = chat_history_path
@@ -1208,6 +1360,42 @@ def main():
         st.session_state["input_file_path"] = input_file_path
     if input_data_type:
         st.session_state["input_data_type"] = input_data_type
+
+    if "openai_api_key" not in st.session_state:
+        st.session_state.openai_api_key = "" # Initialize as empty string
+    if "groq_api_key" not in st.session_state:
+        st.session_state.groq_api_key = "" 
+    
+    if cli_openai_key_file_path:
+        logging.info(f"Attempting to load OpenAI key from CLI file: {cli_openai_key_file_path}")
+        cli_openai_key = load_key_from_specific_file(cli_openai_key_file_path)
+        if cli_openai_key:
+            st.session_state.openai_api_key = cli_openai_key
+            save_key_to_specific_file(OPENAI_API_KEY_FILE, cli_openai_key)
+            logging.info("OpenAI key loaded from CLI file and also saved to local config.")
+    
+    # 2. If not loaded from CLI (or if CLI key was empty), try to load OpenAI key from local config file
+    if not st.session_state.openai_api_key: 
+        loaded_key = load_key_from_specific_file(OPENAI_API_KEY_FILE)
+        if loaded_key:
+            st.session_state.openai_api_key = loaded_key
+            logging.info("OpenAI key loaded from local config file.")
+
+    # Repeat for Groq API Key
+    if cli_groq_key_file_path:
+        logging.info(f"Attempting to load Groq key from CLI file: {cli_groq_key_file_path}")
+        cli_groq_key = load_key_from_specific_file(cli_groq_key_file_path)
+        if cli_groq_key:
+            st.session_state.groq_api_key = cli_groq_key
+            save_key_to_specific_file(GROQ_API_KEY_FILE, cli_groq_key)
+            logging.info("Groq key loaded from CLI file and also saved to local config.")
+
+    if not st.session_state.groq_api_key: 
+        loaded_key = load_key_from_specific_file(GROQ_API_KEY_FILE)
+        if loaded_key:
+            st.session_state.groq_api_key = loaded_key
+            logging.info("Groq key loaded from local config file.")
+
 
     try:
         init_feedback_db()
@@ -1230,15 +1418,79 @@ def main():
     selected_model_name = st.sidebar.selectbox("Select LLM Model", model_keys, index=0)
     selected_model = MODEL_OPTIONS[selected_model_name]
     st.session_state["selected_model"] = selected_model
-    is_openai = selected_model.startswith("gpt-") or selected_model == "gpt-4o"
-    is_groq = selected_model.startswith("llama-")
-    if is_openai and not openai_api_key:
-        openai_api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
-        st.session_state["openai_api_key"] = openai_api_key
-    elif is_groq:
-        groq_api_key = st.sidebar.text_input("Enter your Groq API Key", type="password")
-        st.session_state["selected_model"] = "groq/" + st.session_state["selected_model"]
-        st.session_state["groq_api_key"] = groq_api_key
+    is_openai_selected = selected_model.startswith("gpt-") or selected_model == "gpt-4o"
+    is_groq_selected = selected_model.startswith("llama-")
+    # if is_openai and not openai_api_key:
+    #     st.sidebar.markdown(f"getting here: {not openai_api_key}")
+    #     openai_api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
+    #     st.session_state["openai_api_key"] = openai_api_key
+    # elif is_groq and not groq_api_key:
+    #     groq_api_key = st.sidebar.text_input("Enter your Groq API Key", type="password")
+    #     st.session_state["selected_model"] = "groq/" + st.session_state["selected_model"]
+    #     st.session_state["groq_api_key"] = groq_api_key
+
+    api_key_action_taken = False 
+
+    if is_openai_selected:
+        if not st.session_state.get("openai_api_key"): 
+            st.sidebar.markdown("---")
+            st.sidebar.subheader("OpenAI API Key Required")
+            widget_openai_key_input = st.sidebar.text_input(
+                "Enter your OpenAI API Key:", type="password", key="widget_openai_key_input_field_v3"
+            )
+            if st.sidebar.button("Save and Apply OpenAI Key", key="save_openai_button_v3"):
+                if widget_openai_key_input:
+                    st.session_state.openai_api_key = widget_openai_key_input
+                    save_key_to_specific_file(OPENAI_API_KEY_FILE, widget_openai_key_input)
+                    logging.info("OpenAI Key saved from UI input.")
+                    api_key_action_taken = True
+                else:
+                    st.sidebar.error("API Key cannot be empty.")
+        else:
+            st.sidebar.success(f"OpenAI API Key is configured.")
+            if st.sidebar.button("Clear/Change OpenAI Key", key="clear_openai_button_v3"):
+                save_key_to_specific_file(OPENAI_API_KEY_FILE, "") 
+                st.session_state.openai_api_key = "" 
+                api_key_action_taken = True 
+
+    elif is_groq_selected:
+        if not st.session_state.get("groq_api_key"): 
+            st.sidebar.markdown("---")
+            st.sidebar.subheader("Groq API Key Required")
+            widget_groq_key_input = st.sidebar.text_input(
+                "Enter your Groq API Key:", type="password", key="widget_groq_key_input_field_v3"
+            )
+            if st.sidebar.button("Save and Apply Groq Key", key="save_groq_button_v3"):
+                if widget_groq_key_input:
+                    st.session_state.groq_api_key = widget_groq_key_input
+                    save_key_to_specific_file(GROQ_API_KEY_FILE, widget_groq_key_input)
+                    logging.info("Groq Key saved from UI input.")
+                    api_key_action_taken = True
+                else:
+                    st.sidebar.error("API Key cannot be empty.")
+        else:
+            st.sidebar.success(f"Groq API Key is configured.")
+            if st.sidebar.button("Clear/Change Groq Key", key="clear_groq_button_v3"):
+                save_key_to_specific_file(GROQ_API_KEY_FILE, "") 
+                st.session_state.groq_api_key = "" 
+                api_key_action_taken = True 
+
+    if api_key_action_taken:
+        st.rerun() 
+
+    # --- Determine final API key FOR THE AGENT ---
+    final_api_key_for_agent = None
+    final_model_id_for_agent = selected_model
+
+    if is_openai_selected:
+        final_api_key_for_agent = st.session_state.get("openai_api_key")
+    elif is_groq_selected:
+        final_api_key_for_agent = st.session_state.get("groq_api_key")
+        # LiteLLM convention for Groq models often requires prefixing "groq/"
+        if final_model_id_for_agent and not final_model_id_for_agent.startswith("groq/"):
+            final_model_id_for_agent = "groq/" + final_model_id_for_agent
+
+    # --- Agent Initialization and App Run ---
 
     st.sidebar.markdown(
         """
@@ -1263,11 +1515,8 @@ def main():
     )
 
 
-    if  st.session_state["openai_api_key"] or st.session_state["groq_api_key"]:
-        if is_openai:
-            agent = create_agent(st.session_state["openai_api_key"], st.session_state["selected_model"])
-        elif is_groq:
-            agent = create_agent(st.session_state["groq_api_key"], st.session_state["selected_model"])
+    if final_api_key_for_agent and final_model_id_for_agent:
+        agent = create_agent(final_api_key_for_agent, final_model_id_for_agent)
         app = StreamlitApp(agent=agent,
                            user_id=user_id,
                            output_dir=st.session_state["generate_file_path"],
@@ -1279,10 +1528,10 @@ def main():
         st.sidebar.warning("Please enter the required API Key to use the app.")
 
 if __name__ == "__main__":
-    # try:
-    #     main()
-    # except Exception as e:
-    #     logging.error("Error in main: %s", e)
-    #     st.error(f"An error occurred: {e}")
-    #     st.error("Please try again.")
-    main()
+    try:
+        main()
+    except Exception as e:
+        logging.error("Error in main: %s", e)
+        st.error(f"An error occurred: {e}")
+        st.error("Please try again.")
+    
