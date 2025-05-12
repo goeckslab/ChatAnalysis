@@ -28,3 +28,11 @@ generate_md_report.py
 outputs/*
 smolagents_analysis.py
 smolagents_data_analysis.py
+test_chatbookmark.py
+gpt_key.txt
+groq_api.txt
+generate_files/*
+generate_files_0/*
+generated_file/*
+generated_files/*
+user_config_openai.key
