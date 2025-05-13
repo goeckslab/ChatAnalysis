@@ -472,7 +472,11 @@ class StreamlitApp:
             current_data_type = self.input_data_type
             pandas_compatible_types = ['csv', 'tsv', 'xlsx', 'xls', 'json', 'parquet', 'h5', 'bed']
             if current_data_type in pandas_compatible_types and isinstance(data, pd.DataFrame):
-                generated_summary_path = self.generate_and_save_pandas_summary_csv(data)
+                if not st.session_state.get("summary_stats_csv_path", None):
+                    generated_summary_path = self.generate_and_save_pandas_summary_csv(data)
+                    st.session_state["summary_stats_csv_path"] = generated_summary_path
+                else:
+                    generated_summary_path = st.session_state.get("summary_stats_csv_path", None)
                 
                 if generated_summary_path:
                     self.summary_stats_csv_path = generated_summary_path # Store path
@@ -513,6 +517,7 @@ class StreamlitApp:
             "analysis_file_path": st.session_state.get("analysis_file_path", ""),
             "input_data_type": st.session_state.get("input_data_type", ""),
             "bookmarks": st.session_state.get("bookmarks", []),
+            "summary_stats_csv_path": st.session_state.get("summary_stats_csv_path", ""),
         }
         with open(self.chat_hisory_file, "w") as f:
             json.dump(history, f, indent=2)
@@ -535,60 +540,14 @@ class StreamlitApp:
                     st.session_state["analysis_file_path"] = history.get("analysis_file_path", "")
                     st.session_state["input_data_type"] = history.get("input_data_type", "")
                     st.session_state["bookmarks"] = history.get("bookmarks", [])
+                    st.session_state["summary_stats_csv_path"] = history.get("summary_stats_csv_path", "")
                 else:
                     # File is empty; initialize session state with defaults.
                     st.session_state["messages"] = []
                     st.session_state["eda_report"] = ""
                     st.session_state["memory"] = deque(maxlen=15)
                     st.session_state["bookmarks"] = []
-        
-    
-    def display_bookmark_manager(self):
-        st.title( "Bookmark Manager")
-        bookmarks = st.session_state.get("bookmarks", [])
-        if not bookmarks:
-            st.info("No bookmarks saved.")
-            return
-
-        for i, b in enumerate(bookmarks):
-            if not b:
-                continue
-            rawq = b.get("question", "Unknown question")
-            rawa = b.get("answer", "No answer saved")
-
-            question = rawq if rawq else "Unknown question"
-            answer = rawa if rawa else "No answer saved"
-            with st.expander(f"Bookmark {i + 1}: {question[:60]}"):
-                st.markdown(f"**Question:** {question}")
-                st.markdown(f"**Answer:**\n{answer}")
-
-                if b.get("plots"):
-                    st.markdown("**Saved Plots:**")
-                    for path in b["plots"]:
-                        if os.path.exists(path):
-                            st.image(path, caption=os.path.basename(path))
-
-                if b.get("files"):
-                    st.markdown("**Saved Files:**")
-                    for path in b["files"]:
-                        if os.path.exists(path):
-                            with open(path, "rb") as f:
-                                st.download_button(
-                                    label=f"Download {os.path.basename(path)}",
-                                    data=f,
-                                    file_name=os.path.basename(path),
-                                    key=f"bm_dl_{i}_{path}"
-                                )
-
-                # if st.button("🔁 Rerun this query", key=f"rerun_bookmark_{i}"):
-                #     st.session_state["prefilled_input"] = b["question"]
-                #     
-
-                # if st.button("🗑️ Delete", key=f"delete_bookmark_{i}"):
-                #     st.session_state["bookmarks"].pop(i)
-                #     self.save_chat_history()
-                #     st.success("Bookmark deleted.")
-                #     st.experimental_rerun()
+                    st.session_state["summary_stats_csv_path"] = ""
 
     
     def load_dataset_preview(self):
@@ -1045,14 +1004,15 @@ class StreamlitApp:
                 st.session_state["messages"].append(eda_result_message)
                 st.session_state["memory"].append(f"Assistant (EDA): {report_text}")
 
-                self.display_response(
-                    explanation=report_text,
-                    plot_paths=parsed.get("plots", []) if parsed else [],
-                    file_paths=file_paths,
-                    next_steps_suggestion="  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
-                    middle_steps=middle_steps
-                )
+                # self.display_response(
+                #     explanation=report_text,
+                #     plot_paths=parsed.get("plots", []) if parsed else [],
+                #     file_paths=file_paths,
+                #     next_steps_suggestion="  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
+                #     middle_steps=middle_steps
+                # )
                 self.save_chat_history()
+                st.rerun()
             except Exception as e:
                 st.error(f"Error during EDA: {e}")
 
@@ -1105,14 +1065,15 @@ class StreamlitApp:
                     })
                     st.session_state["memory"].append(f"{role.capitalize()}: Multiple candidate solutions generated.")
                     # Display candidate solutions
-                    self.display_response(
-                        explanation="Multiple candidate solutions generated.",
-                        plot_paths=[],
-                        file_paths=[],
-                        next_steps_suggestion=next_steps,
-                        middle_steps=middle_steps,
-                        candidate_solutions=candidate_list
-                    )
+                    # self.display_response(
+                    #     explanation="Multiple candidate solutions generated.",
+                    #     plot_paths=[],
+                    #     file_paths=[],
+                    #     next_steps_suggestion=next_steps,
+                    #     middle_steps=middle_steps,
+                    #     candidate_solutions=candidate_list
+                    # )
+                    
                     
                 else:
                     message = {
@@ -1133,13 +1094,13 @@ class StreamlitApp:
                         "middle_steps": message["middle_steps"]
                     })
                     st.session_state["memory"].append(f"{role.capitalize()}: {message['explanation']}")
-                    self.display_response(
-                        message["explanation"],
-                        message["plots"],
-                        message["files"],
-                        message["next_steps_suggestion"],
-                        message["middle_steps"]
-                    )
+                    # self.display_response(
+                    #     message["explanation"],
+                    #     message["plots"],
+                    #     message["files"],
+                    #     message["next_steps_suggestion"],
+                    #     message["middle_steps"]
+                    # )
                     
             else:
                 st.session_state["messages"].append({
@@ -1162,14 +1123,14 @@ class StreamlitApp:
                     "middle_steps": middle_steps
                 })
                 st.session_state["memory"].append("Assistant: Multiple candidate solutions generated.")
-                self.display_response(
-                    explanation="",
-                    plot_paths=[],
-                    file_paths=[],
-                    next_steps_suggestion=next_steps,
-                    middle_steps=middle_steps,
-                    candidate_solutions=candidate_list
-                )
+                # self.display_response(
+                #     explanation="",
+                #     plot_paths=[],
+                #     file_paths=[],
+                #     next_steps_suggestion=next_steps,
+                #     middle_steps=middle_steps,
+                #     candidate_solutions=candidate_list
+                # )
                 
             else:
                 message = {
@@ -1191,13 +1152,13 @@ class StreamlitApp:
                     "middle_steps": message["middle_steps"]
                 })
                 st.session_state["memory"].append("Assistant: " + message["explanation"])
-                self.display_response(
-                    message["explanation"],
-                    message["plots"],
-                    message["files"],
-                    message["next_steps_suggestion"],
-                    message["middle_steps"]
-                )
+                # self.display_response(
+                #     message["explanation"],
+                #     message["plots"],
+                #     message["files"],
+                #     message["next_steps_suggestion"],
+                #     message["middle_steps"]
+                # )
                 
 
         # Case 3: Response is a plain string.
@@ -1217,6 +1178,8 @@ class StreamlitApp:
                 "role": "assistant",
                 "content": f"Response received:\n\n{response}\n"
             })
+        self.save_chat_history()
+        st.rerun()
 
 
 
