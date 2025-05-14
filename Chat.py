@@ -774,6 +774,7 @@ class StreamlitApp:
                 f"- You should find an appropriate method to generate plots for this query. If a plot or file is generated, save it in the directory {self.output_dir} with a random numerical suffix to prevent overwrites.\n"
                 "- Do not generate filenames like 'random_forest_model_XXXX.joblib'.\n"
                 "- Always consider to generate plots or files to support your answer.\n"
+                f"- If plots are generated, if possible, put the data used to generate the plots in csv files in the {self.output_dir} directory.\n"
                 "- Always call the final_answer tool, providing the final answer in the following dictionary format (do not format as a JSON code block):\n"
                 '{ "explanation": ["Your explanation here, in plain text. This can include detailed information or step-by-step guidance."], '
                 '"plots": ["<path_to_the_image>" (leave the list empty if no plots are needed)], '
@@ -811,6 +812,7 @@ class StreamlitApp:
                 f"- If a plot or file is generated, save it in the {self.output_dir} directory with a random numerical suffix to prevent overwrites.\n"
                 "- Do not generate filenames like 'random_forest_model_XXXX.joblib'.\n"
                 "- Always consider to generate plots or files to support your answer.\n"
+                f"- If plots are generated, if possible, put the data used to generate the plots in csv files in the {self.output_dir} directory.\n"
                 "- Always call the final_answer tool, providing the final answer in one of the following dictionary formats (do not format as a JSON code block):\n\n"
                 "Simple answer format:\n"
                 '{ "explanation": ["Your explanation text. in plain text. This can include detailed information or step-by-step guidance."], "plots": ["<path_to_image>" (leave the list empty if no plots are needed)], "files": ["<path_to_file>" (leave the list empty if no files are needed)], "next_steps_suggestion": ["Suggestion 1", "Suggestion 2"] }\n\n'
@@ -1133,8 +1135,8 @@ class StreamlitApp:
             if os.path.exists(st.session_state["analysis_file_path"]):
                 if st.sidebar.button("Correlation Matrix", key="corr_matrix"):
                     self.handle_user_input(st.session_state["analysis_file_path"], "Show the correlation matrix of the features.")
-                if st.sidebar.button("Missing Values", key="missing_values"):
-                    self.handle_user_input(st.session_state["analysis_file_path"], "What are the missing values in the dataset?")
+                if st.sidebar.button("Identify missing values & drop sparse columns", key="missing_values"):
+                    self.handle_user_input(st.session_state["analysis_file_path"], "Are there any missing values in the dataset? If so, which columns contain them? If applicable, remove the columns with mostly missing values and return the modified dataset.Only return the dataset if it was modified.")
                 if st.sidebar.button("Numerical Feature Distribution", key="num_dist"):
                     self.handle_user_input(st.session_state["analysis_file_path"], "Show the distribution of numerical features.")
                 # if st.sidebar.button("Summary Statistics", key="summary_stats"):
