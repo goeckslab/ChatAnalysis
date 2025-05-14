@@ -521,6 +521,11 @@ class StreamlitApp:
         }
         with open(self.chat_hisory_file, "w") as f:
             json.dump(history, f, indent=2)
+        bookmark_history = {
+            "bookmarks": st.session_state.get("bookmarks", []),
+        }
+        with open("bookmarks.json", "w") as f:
+            json.dump(bookmark_history, f, indent=2)
 
 
     def load_chat_history(self):
@@ -771,8 +776,8 @@ class StreamlitApp:
                 "- Always consider to generate plots or files to support your answer.\n"
                 "- Always call the final_answer tool, providing the final answer in the following dictionary format (do not format as a JSON code block):\n"
                 '{ "explanation": ["Your explanation here, in plain text. This can include detailed information or step-by-step guidance."], '
-                '"plots": ["<path_to_the_image>" (leave empty if no plots are needed)], '
-                '"files": ["<path_to_the_file>" (leave empty if no files are needed)], '
+                '"plots": ["<path_to_the_image>" (leave the list empty if no plots are needed)], '
+                '"files": ["<path_to_the_file>" (leave the list empty if no files are needed)], '
                 '"next_steps_suggestion": ["List of possible next questions the user could ask to gain further insights. They should be questions. Only include this when the user has not explicitly asked for suggestions."] }'
             )
         elif question_type == 1:
@@ -786,8 +791,8 @@ class StreamlitApp:
                 "- Always consider to generate plots or files to support your answer.\n"
                 "- Always call the final_answer tool, providing the final answer in the following dictionary format (do not format as a JSON code block):\n"
                 '{ "explanation": ["Your explanation here, in plain text. This can include detailed information or step-by-step guidance."], '
-                '"plots": ["<path_to_the_image>" (leave empty if no plots are needed)], '
-                '"files": ["<path_to_the_file>" (leave empty if no files are needed)], '
+                '"plots": ["<path_to_the_image>" (leave the list empty if no plots are needed)], '
+                '"files": ["<path_to_the_file>" (leave the list empty if no files are needed)], '
                 '"next_steps_suggestion": ["List of possible next questions the user could ask to gain further insights. They should be questions. Only include this when the user has not explicitly asked for suggestions."] }'
             )
         else:
@@ -808,7 +813,7 @@ class StreamlitApp:
                 "- Always consider to generate plots or files to support your answer.\n"
                 "- Always call the final_answer tool, providing the final answer in one of the following dictionary formats (do not format as a JSON code block):\n\n"
                 "Simple answer format:\n"
-                '{ "explanation": ["Your explanation text. in plain text. This can include detailed information or step-by-step guidance."], "plots": ["<path_to_image>"], "files": ["<path_to_file>"], "next_steps_suggestion": ["Suggestion 1", "Suggestion 2"] }\n\n'
+                '{ "explanation": ["Your explanation text. in plain text. This can include detailed information or step-by-step guidance."], "plots": ["<path_to_image>" (leave the list empty if no plots are needed)], "files": ["<path_to_file>" (leave the list empty if no files are needed)], "next_steps_suggestion": ["Suggestion 1", "Suggestion 2"] }\n\n'
                 "Multiple candidate solutions format:\n"
                 '{ "candidate_solutions": [ { "option": "Solution 1", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." }, { "option": "Solution 2", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." }, { "option": "Solution 3", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." } ], "next_steps_suggestion": ["Which option would you like to refine?", "Or ask for more details on a candidate solution."] }'
             )
@@ -886,7 +891,7 @@ class StreamlitApp:
                 # )
 
                 file_paths = parsed.get("files", [])
-                file_paths = [eda_file_path] + file_paths
+                file_paths = [eda_file_path] + file_paths if file_paths else [eda_file_path]
 
                 eda_result_message = {
                     "role": "assistant",

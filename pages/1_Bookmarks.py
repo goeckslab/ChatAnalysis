@@ -1,7 +1,8 @@
 # pages/1_Bookmarks.py
 import streamlit as st
 import os
-from PIL import Image # If displaying images from paths
+from PIL import Image
+import json
 
 
 st.set_page_config(
@@ -69,13 +70,18 @@ st.markdown("""
 
 st.title("🔖 Bookmark Manager")
 
-# Ensure necessary session state variables are accessible
-# These should have been set by Chat_Bot.py when it first ran.
-output_dir = st.session_state.get("generate_file_path", "outputs_smolagents") # Default if not found
+def load_chat_history():
+    if os.path.exists("bookmarks.json"):
+        with open("bookmarks.json", "r") as f:
+            file_contents = f.read().strip()
+            if file_contents:
+                history = json.loads(file_contents)
+                st.session_state["bookmarks"] = history.get("bookmarks", [])
+            else:
+                st.session_state["bookmarks"] = []
 
-if "bookmarks" not in st.session_state:
-    st.session_state["bookmarks"] = [] # Initialize if somehow not present
 
+load_chat_history()
 bookmarks = st.session_state.get("bookmarks", [])
 
 if not bookmarks:
@@ -93,36 +99,33 @@ else:
         file_paths = b_data.get("files", [])
 
         with st.expander(f"Bookmark {i + 1}: {question[:60]}"):
-            st.markdown(f"**❓ Question:**\n```\n{question}\n```")
-            st.markdown(f"**💡 Answer:**\n{answer}") # Assuming answer is markdown-compatible
+            st.markdown(f"**❓ Question:**\n{question}\n")
+            st.markdown(f"**💡 Answer:**\n{answer}")
 
-            if plot_paths:
+            if plot_paths and not (len(plot_paths) == 1 and plot_paths[0] == ""):
                 st.markdown("**📊 Saved Plots:**")
                 for plot_path_in_bookmark in plot_paths:
-                    # Construct full path if paths are stored relative or just basenames
-                    # Assuming paths in bookmark_data are already correct relative to execution
-                    # or are absolute. If relative to output_dir, prepend it.
-                    # For simplicity, let's assume plot_path_in_bookmark is usable as is
-                    # or is a full path. If it's just a basename:
-                    # actual_plot_path = os.path.join(output_dir, os.path.basename(plot_path_in_bookmark))
-                    actual_plot_path = plot_path_in_bookmark # Use this if paths are stored fully qualified or correctly relative
+                    actual_plot_path = plot_path_in_bookmark
+                    if actual_plot_path == "":
+                        continue
 
-                    if os.path.exists(actual_plot_path):
+                    if actual_plot_path and os.path.exists(actual_plot_path):
                         try:
                             image = Image.open(actual_plot_path)
                             st.image(image, caption=os.path.basename(actual_plot_path))
                         except Exception as e:
                             st.error(f"Could not load plot {os.path.basename(actual_plot_path)}: {e}")
                     else:
-                        st.warning(f"Plot not found: {actual_plot_path}")
+                        pass
 
-            if file_paths:
+            if file_paths and not (len(file_paths) == 1 and file_paths[0] == ""):
                 st.markdown("**📄 Saved Files:**")
                 for file_path_in_bookmark in file_paths:
-                    # actual_file_path = os.path.join(output_dir, os.path.basename(file_path_in_bookmark))
-                    actual_file_path = file_path_in_bookmark # Similar assumption as plots
+                    actual_file_path = file_path_in_bookmark
+                    if actual_file_path == "":
+                        continue
 
-                    if os.path.exists(actual_file_path):
+                    if actual_file_path and os.path.exists(actual_file_path):
                         try:
                             with open(actual_file_path, "rb") as f_download:
                                 st.download_button(
@@ -134,16 +137,4 @@ else:
                         except Exception as e:
                             st.error(f"Could not prepare file {os.path.basename(actual_file_path)} for download: {e}")
                     else:
-                        st.warning(f"File not found: {actual_file_path}")
-
-            # Add delete/rerun functionality if desired (would need to modify st.session_state.bookmarks and save)
-            # e.g., if st.button("Delete Bookmark", key=f"delete_bm_{i}"):
-            #   st.session_state.bookmarks.pop(i)
-            #   # Need a way to trigger save_chat_history() from StreamlitApp if it's responsible,
-            #   # or manage bookmark saving directly via session state + json persistence here.
-            #   # For now, keep it simple.
-            #   st.experimental_rerun()
-
-# If you have common sidebar elements (like API config) that should appear on all pages,
-# you might need to duplicate that logic here or move it to a shared utility function.
-# For now, the Bookmarks page is simple and doesn't re-declare the LLM config sidebar.
+                        pass
