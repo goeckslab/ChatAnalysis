@@ -1,4 +1,6 @@
-<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.2.1">
+<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.2.2">
+    <icon src="datachat.png" />
+    <description>Use natural language to work with and analyze your data</description>
     <requirements>
         <container type="docker">
             quay.io/goeckslab/chatanalysis:release
@@ -33,7 +35,7 @@
             "$chat_history"
             "./generated_files"
             "$input_dataset"
-            "$input_dataset.ext" 
+            "$input_dataset.ext"
             --browser.gatherUsageStats false &&
         echo "Streamlit finished" &&
         echo "working dir now: '.' "
@@ -79,5 +81,3 @@
         Alternatively, you can set the API key directly in the ChatAnalysis instance after it has started.
     </help>
 </tool>
-
-
