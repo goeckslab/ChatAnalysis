@@ -30,11 +30,9 @@ COPY . .
 RUN pip install --no-cache-dir --upgrade pip
 
 # Install Python dependencies from requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements_nicegui.txt
 
-# Expose Streamlit’s port
-EXPOSE 8501
-ENV STREAMLIT_SERVER_PORT=8501
+EXPOSE 8090
 
 # Adjust permissions if needed
 RUN chmod -R 777 /ChatAnalysis
