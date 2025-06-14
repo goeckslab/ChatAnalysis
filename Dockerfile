@@ -30,9 +30,9 @@ COPY . .
 RUN pip install --no-cache-dir --upgrade pip
 
 # Install Python dependencies from requirements.txt
-RUN pip install --no-cache-dir -r requirements_nicegui.txt
+RUN pip install --no-cache-dir -r requirements_nicegui_dspy.txt
 
-EXPOSE 8090
+EXPOSE 9090
 
 # Adjust permissions if needed
 RUN chmod -R 777 /ChatAnalysis

@@ -36,3 +36,10 @@ generate_files_0/*
 generated_file/*
 generated_files/*
 user_config_openai.key
+test_uploader.*
+test_display_gxy.py
+outputs_dir/*
+outputs_smolagents_nicegui/*
+!examples.json
+__pycache__
+.*key
