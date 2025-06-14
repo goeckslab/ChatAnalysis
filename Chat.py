@@ -1136,7 +1136,7 @@ class StreamlitApp:
                 if st.sidebar.button("Correlation Matrix", key="corr_matrix"):
                     self.handle_user_input(st.session_state["analysis_file_path"], "Show the correlation matrix of the features.")
                 if st.sidebar.button("Identify missing values & drop sparse columns", key="missing_values"):
-                    self.handle_user_input(st.session_state["analysis_file_path"], "Are there any missing values in the dataset? If so, which columns contain them? If applicable, remove the columns with mostly missing values and return the modified dataset.Only return the dataset if it was modified.")
+                    self.handle_user_input(st.session_state["analysis_file_path"], "Are there any missing values in the dataset? If so, which columns contain them? If applicable, remove the columns with mostly missing values and return the modified dataset. Only return the dataset if it was modified.")
                 if st.sidebar.button("Numerical Feature Distribution", key="num_dist"):
                     self.handle_user_input(st.session_state["analysis_file_path"], "Show the distribution of numerical features.")
                 # if st.sidebar.button("Summary Statistics", key="summary_stats"):
