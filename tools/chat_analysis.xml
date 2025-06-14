@@ -1,4 +1,6 @@
 <tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.3.0">
+    <icon src="datachat.png" />
+    <description>Use natural language to work with and analyze your data</description>
     <requirements>
         <container type="docker">
             quay.io/goeckslab/chatanalysis:0.3.0
@@ -78,5 +80,3 @@
         Alternatively, you can set the API key directly in the ChatAnalysis instance after it has started.
     </help>
 </tool>
-
-
