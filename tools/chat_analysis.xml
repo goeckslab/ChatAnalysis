@@ -1,4 +1,4 @@
-<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.3.0">
+<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Data Analysis Agent - Chat with your data" version="0.3.0">
     <icon src="datachat.png" />
     <description>Use natural language to work with and analyze your data</description>
     <requirements>
