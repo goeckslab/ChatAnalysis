@@ -28,3 +28,4 @@ user_config_*
 *.pkl
 test*.py
 test*.xml
+dspy_agent.py

@@ -7,7 +7,7 @@ from PIL import Image
 from pandasai import Agent
 from pandasai.llm import OpenAI, BambooLLM, AzureOpenAI
 from pandasai.responses.streamlit_response import StreamlitResponse
-import config
+import pandasai_agent.config as config
 from helper import detect_image_path
 from pandasai.exceptions import PandasAIApiCallError
 import sys

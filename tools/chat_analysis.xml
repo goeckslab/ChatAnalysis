@@ -29,7 +29,7 @@
         echo "$input_dataset.ext" &&
         ln -sf $__tool_directory__/.env /ChatAnalysis/.env &&
         python /ChatAnalysis/chat_dspy.py
-            --user_id "$__user_email__"
+            --user_id "$__user_name__"
             --openai_key_file "$openai_api_key_file"
             --groq_key_file "$groq_api_key_file"
             --chat_history "$chat_history"
@@ -54,7 +54,7 @@
         <exit_code range="0:0" level="log"/>
     </stdio>
     <inputs>
-        <param name="input_dataset"  type="data" format="csv,tsv,h5ad,xlsx,xls,json,parquet,h5,fa,fasta,vcf,gtf,gff,bed" label="Data you want to chat with" optional="false"/>
+        <param name="input_dataset"  type="data" format="csv,tsv,h5ad,xlsx,xls" label="Data you want to chat with" optional="false"/>
     </inputs>
     <outputs>
         <data name="chat_history" format="json" label="${tool.name} -- chat history json on ${on_string} -- use to restore chat history next time"/>
