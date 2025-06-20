@@ -23,3 +23,8 @@ groq_api_key.txt
 generate_md_report.py
 *.md
 outputs/*
+outputs_dir/
+user_config_*
+*.pkl
+test*.py
+test*.xml

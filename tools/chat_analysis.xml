@@ -1,13 +1,15 @@
-<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Chat with your data" version="0.2.1">
+<tool id="interactive_tool_chat_analysis" tool_type="interactive" name="Data Analysis Agent" version="0.3.0">
+    <icon src="datachat.png" />
+    <description>Interactively chats using natural language to explore, visualize, and analyze your data</description>
     <requirements>
         <container type="docker">
-            quay.io/goeckslab/chatanalysis:release
+            quay.io/goeckslab/chatanalysis:0.3.0
         </container>
     </requirements>
     <entry_points>
         <entry_point name="Chat with $input_dataset.element_identifier" requires_domain="True">
             <port>
-                8501
+                9090
             </port>
             <url>
                 /
@@ -19,23 +21,22 @@
         #import re
         echo "Starting Streamlit" &&
         echo "working dir now: `pwd`" &&
-        mkdir -p generated_files &&
+        mkdir -p outputs_dir &&
         #set $sanitized_input_dataset = re.sub('[^\w\-_\.]', '_', $input_dataset.element_identifier.strip())
         ln -sf '$input_dataset' "./${sanitized_input_dataset}";
         echo "sanitized input dataset: $sanitized_input_dataset" &&
         echo "input dataset: $input_dataset" &&
         echo "$input_dataset.ext" &&
         ln -sf $__tool_directory__/.env /ChatAnalysis/.env &&
-        streamlit run /ChatAnalysis/Chat.py
-            "$__user_email__"
-            "$openai_api_key_file"
-            "$groq_api_key_file"
-            "$chat_history"
-            "./generated_files"
-            "$input_dataset"
-            "$input_dataset.ext" 
-            --browser.gatherUsageStats false &&
-        echo "Streamlit finished" &&
+        python /ChatAnalysis/chat_dspy.py
+            --user_id "$__user_email__"
+            --openai_key_file "$openai_api_key_file"
+            --groq_key_file "$groq_api_key_file"
+            --chat_history "$chat_history"
+            --outputs_dir "./outputs_dir"
+            --input_file "$input_dataset"
+            --input_type "$input_dataset.ext" &&
+        echo "finished" &&
         echo "working dir now: '.' "
 
         ]]>
@@ -66,11 +67,7 @@
         </test>
     </tests>
     <help>
-        Analyze and visualize a dataset with a Chat Agent.
-
-        Start a ChatAnalysis instance after selecting a dataset — we provide free access to some LLMs.
-
-        You are encouraged to use your own API keys, as the provided free access has limits. You can obtain a **free API key** for BambooLLM by signing up at https://pandas-ai.com and a **free API key** for Groq by signing up at https://groq.com.
+        Analyze and visualize a dataset with a Data Analysis Agent.
 
         If you wish to set the OpenAI API key beforehand, go to **User → Preferences → Manage Information → ChatGPT → OpenAI API Key**. This way, you won’t need to set the OpenAI API key each time you use the app.
 
@@ -79,5 +76,3 @@
         Alternatively, you can set the API key directly in the ChatAnalysis instance after it has started.
     </help>
 </tool>
-
-
