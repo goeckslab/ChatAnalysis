@@ -67,11 +67,7 @@
         </test>
     </tests>
     <help>
-        Analyze and visualize a dataset with a Chat Agent.
-
-        Start a ChatAnalysis instance after selecting a dataset — we provide free access to some LLMs.
-
-        You are encouraged to use your own API keys, as the provided free access has limits. You can obtain a **free API key** for BambooLLM by signing up at https://pandas-ai.com and a **free API key** for Groq by signing up at https://groq.com.
+        Analyze and visualize a dataset with a Data Analysis Agent.
 
         If you wish to set the OpenAI API key beforehand, go to **User → Preferences → Manage Information → ChatGPT → OpenAI API Key**. This way, you won’t need to set the OpenAI API key each time you use the app.
 
