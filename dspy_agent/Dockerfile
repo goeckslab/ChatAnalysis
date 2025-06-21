@@ -1,6 +1,9 @@
 FROM python:3.10-slim
 
-# Install system dependencies (including libc6-dev for additional headers)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install system-level dependencies required for popular Python data science and plotting libraries
 RUN apt-get update && apt-get install -y \
     build-essential \
     gfortran \
@@ -18,21 +21,15 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+
 WORKDIR /ChatAnalysis
 
-ENV STREAMLIT_HOME=/ChatAnalysis/.streamlit
 
-# Copy all project files into the container
-COPY . .
+COPY dspy_agent/requirements_nicegui_dspy.txt .
 
-# Upgrade pip to get the latest binary wheels
 RUN pip install --no-cache-dir --upgrade pip
-
-# Install Python dependencies from requirements.txt
 RUN pip install --no-cache-dir -r requirements_nicegui_dspy.txt
 
-EXPOSE 9090
+COPY . .
 
-# Adjust permissions if needed
-RUN chmod -R 777 /ChatAnalysis
+EXPOSE 9090

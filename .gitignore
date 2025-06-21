@@ -29,3 +29,4 @@ user_config_*
 test*.py
 test*.xml
 dspy_agent.py
+!dspy_agent/static/*.png

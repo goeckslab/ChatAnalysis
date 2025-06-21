@@ -1,9 +1,10 @@
 # Core Application & Frameworks
 nicegui
-dspy-ai==2.4.3
+dspy-ai==2.6.24
 python-dotenv
 cloudpickle
 psycopg2-binary
+structlog 
 
 # Core Data Science & Plotting
 pandas
@@ -29,6 +30,5 @@ catboost
 # Bioinformatics
 anndata
 biopython
-PyVCF
 pysam
 gffutils

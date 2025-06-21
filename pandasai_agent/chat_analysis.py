@@ -8,14 +8,14 @@ from pandasai import Agent
 from pandasai.llm import OpenAI, BambooLLM, AzureOpenAI
 from pandasai.responses.streamlit_response import StreamlitResponse
 import pandasai_agent.config as config
-from helper import detect_image_path
+from smolagents_agent.helper import detect_image_path
 from pandasai.exceptions import PandasAIApiCallError
 import sys
 from st_aggrid import AgGrid
 from langchain_groq.chat_models import ChatGroq
 import json
 from dotenv import load_dotenv
-from generate_html_report import generate_html_from_json
+from pandasai_agent.generate_html_report import generate_html_from_json
 import logging  
 
 logging.basicConfig(level=logging.DEBUG)

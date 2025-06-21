@@ -26,25 +26,53 @@ APP_OUTPUT_DIR = Path(os.getenv("APP_OUTPUT_DIR", "outputs_dir"))
 SCRIPT_PATH = Path(__file__).resolve().parent
 
 
+# try:
+#     APP_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+#     dspy_cache_path = APP_OUTPUT_DIR / ".dspy_cache"
+#     dspy_cache_path.mkdir(parents=True, exist_ok=True)
+#     os.environ["DSPY_CACHEDIR"] = str(dspy_cache_path.resolve())
+
+#     matplotlib_cache_path = APP_OUTPUT_DIR / ".matplotlib_cache"
+#     matplotlib_cache_path.mkdir(parents=True, exist_ok=True)
+#     os.environ["MPLCONFIGDIR"] = str(matplotlib_cache_path.resolve())
+
+#     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+#     logging.info(f"SCRIPT CWD when starting: {Path.cwd()}")
+#     logging.info(f"APP_OUTPUT_DIR resolved to: {APP_OUTPUT_DIR.resolve()}")
+#     logging.info(f"DSPY_CACHE_DIR set to: {os.environ['DSPY_CACHE_DIR']}")
+#     logging.info(f"MPLCONFIGDIR set to: {os.environ['MPLCONFIGDIR']}")
+
+# except Exception as e:
+#     print(f"ERROR during initial cache path setup: {e}", file=sys.stderr)
+
 try:
     APP_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    # --- DSPy Cache Setup ---
     dspy_cache_path = APP_OUTPUT_DIR / ".dspy_cache"
     dspy_cache_path.mkdir(parents=True, exist_ok=True)
-    os.environ["DSPY_CACHEDIR"] = str(dspy_cache_path.resolve())
+    dspy_cache_path_str = str(dspy_cache_path.resolve())
+    os.environ["DSPY_CACHEDIR"] = dspy_cache_path_str
 
+    # --- Matplotlib Cache Setup ---
     matplotlib_cache_path = APP_OUTPUT_DIR / ".matplotlib_cache"
     matplotlib_cache_path.mkdir(parents=True, exist_ok=True)
-    os.environ["MPLCONFIGDIR"] = str(matplotlib_cache_path.resolve())
+    matplotlib_cache_path_str = str(matplotlib_cache_path.resolve())
+    os.environ["MPLCONFIGDIR"] = matplotlib_cache_path_str
 
+    # --- Logging Setup ---
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
     logging.info(f"SCRIPT CWD when starting: {Path.cwd()}")
     logging.info(f"APP_OUTPUT_DIR resolved to: {APP_OUTPUT_DIR.resolve()}")
-    logging.info(f"DSPY_CACHE_DIR set to: {os.environ['DSPY_CACHE_DIR']}")
-    logging.info(f"MPLCONFIGDIR set to: {os.environ['MPLCONFIGDIR']}")
+    # Use the local variable for logging, which is safer.
+    logging.info(f"DSPY_CACHE_DIR set to: {dspy_cache_path_str}")
+    logging.info(f"MPLCONFIGDIR set to: {matplotlib_cache_path_str}")
 
 except Exception as e:
-    print(f"ERROR during initial cache path setup: {e}", file=sys.stderr)
+    # Improved error printing to give more context if another error occurs
+    print(f"ERROR during initial cache path setup: {type(e).__name__}: {e}", file=sys.stderr)
+
 
 
 import dspy
@@ -91,8 +119,24 @@ logging.info("Logging configured successfully.")
 AUTHORIZED_MODULES_FOR_CODE_TOOL = [
     "pandas", "numpy", "matplotlib.pyplot", "seaborn", "scipy.stats",
     "pathlib", "io", "sklearn", "autogluon", "random", "joblib", "openpyxl",
-     "anndata", "Bio", "vcf", "statsmodels", "plotly", 
+     "anndata", "Bio", "vcf", "statsmodels", "plotly", "itertools", "collections", "json",
 ]
+
+class FinishTool(dspy.Tool):
+    """A dummy tool that signals the end of the interaction and provides the final answer."""
+    name = "finish"
+    input_variable = "final_answer"
+    output_variable = "text"
+    description = "Use this action to end the interaction and provide the final answer."
+
+    def __init__(self):
+        # This line registers the __call__ method as the function to run for this tool.
+        super().__init__(func=self.__call__)
+
+    def __call__(self, final_answer: str) -> str:
+        # This tool doesn't need to do anything. Its only job is
+        # to exist and have the correct signature for validation.
+        return "Final answer received."
 
 class PythonCodeTool(dspy.Tool):
     name = "python_code_executor"
@@ -250,6 +294,13 @@ class DataAnalysisSignature(dspy.Signature):
 
     **IMPORTANT: To prevent file conflicts, all generated file and plot names MUST end with a unique suffix (e.g., a short random string or number). For example, save 'plot.png' as 'plot_a8d3.png'.**
 
+    When you have gathered all the necessary information and are ready to provide the final answer,
+    you MUST use the special 'finish' action. The 'finish' action requires a single argument: 'final_answer'.
+    The value for 'answer' MUST be a single, valid JSON string.
+    Here is a literal example of the final step:
+    Thought: I have collected all the results and I am ready to provide the final answer.
+    Action: finish(answer='{"explanation": "The analysis is complete.", "plots": ["generated_files/plot1.png"], "files": ["generated_files/data.csv"], "next_steps_suggestion": ["Consider further analysis."]}')
+
     Finally, provide a comprehensive answer to the user in JSON format. This JSON MUST include:
     - "explanation": A textual explanation of what was done and the insights.
     - "plots": A list of relative paths (from 'outputs_dir') to any generated plot image files. rember to return the paths for all plots generated.
@@ -266,7 +317,8 @@ class DataAnalysisAgentModule(dspy.Module): # Renamed to avoid conflict with smo
         super().__init__()
         self.react_agent = dspy.ReAct(
             DataAnalysisSignature,
-            tools=[PythonCodeTool(outputs_dir=outputs_dir, current_dataset_path=current_dataset_path)],
+            tools=[PythonCodeTool(outputs_dir=outputs_dir, current_dataset_path=current_dataset_path),
+                   FinishTool()],
             max_iters=max_iters
         )
 
@@ -339,7 +391,7 @@ def load_examples_from_json(json_file_path: Path) -> list[dspy.Example]:
                     question=item.get("question"),
                     context=item.get("context"),
                     rationale=item.get("rationale"),
-                    final_answer=item.get("final_answer") # This is a JSON string
+                    answer=item.get("answer") # This is a JSON string
                 ).with_inputs("question", "context")
                 examples.append(example)
         logging.info(f"Loaded {len(examples)} examples from {json_file_path}")
@@ -352,7 +404,7 @@ def validation_metric(example: dspy.Example, prediction: dspy.Prediction, trace=
     to-do: improve this validation metric to be more robust.
     """
     try:
-        pred_dict = json.loads(prediction.final_answer)
+        pred_dict = json.loads(prediction.answer)
 
         # Basic check: explanation exists and is non-empty
         if "explanation" not in pred_dict or not pred_dict["explanation"]:
@@ -370,10 +422,10 @@ def validation_metric(example: dspy.Example, prediction: dspy.Prediction, trace=
         return True
         
     except json.JSONDecodeError:
-        logging.debug(f"Validation Fail: Prediction not valid JSON. Pred: {str(prediction.final_answer)[:200]}")
+        logging.debug(f"Validation Fail: Prediction not valid JSON. Pred: {str(prediction.answer)[:200]}")
         return False
     except Exception as e:
-        logging.error(f"Validation Metric Error: {e}. Pred: {str(prediction.final_answer)[:200]}", exc_info=True)
+        logging.error(f"Validation Metric Error: {e}. Pred: {str(prediction.answer)[:200]}", exc_info=True)
         return False
 
 
@@ -458,9 +510,10 @@ class NiceGuiApp:
         self.memory = deque(maxlen=30) # Keep conversation history for context
         self.bookmarks = []
         
-        self.current_dataset_file_path: Path | None = None
-        self.current_dataset_display_name = "No dataset loaded"
-        self.current_input_data_type = self.cli_args.input_data_type
+        # self.current_dataset_file_path: Path | None = None
+        # self.current_dataset_display_name = "No dataset loaded"
+        # self.current_input_data_type = self.cli_args.input_data_type
+        self.current_dataset: dict | None = None
         self.current_data_object = None # Loaded data (e.g., DataFrame)
         self.summary_stats_csv_path: Path | None = None # For pandas summaries
         self.eda_report_path: Path | None = None # Not used with DSPy agent directly unless agent creates it
@@ -493,6 +546,21 @@ class NiceGuiApp:
         self.compile_dspy_agent_on_startup = self.cli_args.compile_dspy_agent # From CLI
 
         self.load_initial_state()
+    
+    @property
+    def current_dataset_file_path(self) -> Path | None:
+        """Safely gets the file path from the current dataset dictionary."""
+        return self.current_dataset.get('path') if self.current_dataset else None
+
+    @property
+    def current_dataset_display_name(self) -> str:
+        """Safely gets the display name from the current dataset dictionary."""
+        return self.current_dataset.get('display_name', 'No dataset loaded') if self.current_dataset else 'No dataset loaded'
+
+    @property
+    def current_input_data_type(self) -> str | None:
+        """Safely gets the data type from the current dataset dictionary."""
+        return self.current_dataset.get('type') if self.current_dataset else None
 
     def load_initial_state(self):
         cli_openai_path_str = self.cli_args.cli_openai_key_file_path
@@ -520,18 +588,36 @@ class NiceGuiApp:
                     self.memory = deque(history.get("memory", []), maxlen=30) # Restore memory
                     self.bookmarks = history.get("bookmarks", [])
 
+                    # saved_dataset_path_str = history.get("analysis_file_path")
+                    # if saved_dataset_path_str:
+                    #     saved_dataset_path = Path(saved_dataset_path_str)
+                    #     if saved_dataset_path.exists():
+                    #         self.current_dataset_file_path = saved_dataset_path
+                    #         self.current_dataset_display_name = self.current_dataset_file_path.name
+                    #         self.current_input_data_type = history.get("input_data_type", self.current_input_data_type)
                     saved_dataset_path_str = history.get("analysis_file_path")
                     if saved_dataset_path_str:
                         saved_dataset_path = Path(saved_dataset_path_str)
                         if saved_dataset_path.exists():
-                            self.current_dataset_file_path = saved_dataset_path
-                            self.current_dataset_display_name = self.current_dataset_file_path.name
-                            self.current_input_data_type = history.get("input_data_type", self.current_input_data_type)
+                            # This now correctly sets the single 'source of truth' dictionary
+                            self.current_dataset = {
+                                "path": saved_dataset_path,
+                                "display_name": saved_dataset_path.name,
+                                "type": history.get("input_data_type", "csv")
+                            }
                     
+                    # if self.initial_dataset_path_from_arg and self.initial_dataset_path_from_arg.exists():
+                    #     self.current_dataset_file_path = self.initial_dataset_path_from_arg
+                    #     self.current_dataset_display_name = self.current_dataset_file_path.name
+                    #     self.current_input_data_type = self.cli_args.input_data_type
+
                     if self.initial_dataset_path_from_arg and self.initial_dataset_path_from_arg.exists():
-                        self.current_dataset_file_path = self.initial_dataset_path_from_arg
-                        self.current_dataset_display_name = self.current_dataset_file_path.name
-                        self.current_input_data_type = self.cli_args.input_data_type
+                        display_name = self.cli_args.file_name or self.initial_dataset_path_from_arg.name
+                        self.current_dataset = {
+                            "path": self.initial_dataset_path_from_arg,
+                            "display_name": display_name,
+                            "type": self.cli_args.input_data_type,
+                        }
 
                     summary_path_str = history.get("summary_stats_csv_path"); eda_path_str = history.get("eda_report_path")
                     if summary_path_str and Path(summary_path_str).exists(): self.summary_stats_csv_path = Path(summary_path_str)
@@ -541,9 +627,9 @@ class NiceGuiApp:
                     for msg in self.messages:
                         if msg.get("role") == "assistant" and msg.get("timestamp") in bookmarked_message_timestamps:
                             msg['bookmarked'] = True
-                        if msg.get("role") == "assistant":
-                            # any existing cost will be kept; missing ones default to None
-                            msg.setdefault("cost", None) 
+                        # if msg.get("role") == "assistant":
+                        #     # any existing cost will be kept; missing ones default to None
+                        #     msg.setdefault("cost", None) 
                 
                 logging.info(f"Chat history loaded from {self.chat_history_file_path}")
             except Exception as e: logging.error(f"Error loading chat history: {e}", exc_info=True)
@@ -712,8 +798,10 @@ class NiceGuiApp:
             dataset_info_str = "No dataset currently loaded."
             if self.current_dataset_file_path:
                 dataset_info_str = (
-                    f"Current dataset path for tool: '{self.current_dataset_file_path}'.\n"
-                    f"Dataset type: '{self.current_input_data_type}'.\n"
+                    # f"Current dataset path for tool: '{self.current_dataset_file_path}'.\n"
+                    # f"Dataset type: '{self.current_input_data_type}'.\n"
+                    f"Current dataset path for tool: '{self.current_dataset['path']}'.\n"
+                    f"Dataset type: '{self.current_dataset['type']}'.\n"
                     f"Agent's output directory for saving files: '{self.outputs_dir}'. "
                     f"Tool must save generated files (plots, CSVs) into 'outputs_dir / \"{AGENT_GENERATED_FILES_SUBDIR.name}\"/' "
                     f"(e.g., outputs_dir / \"{AGENT_GENERATED_FILES_SUBDIR.name}/plot.png\").\n"
@@ -747,7 +835,7 @@ class NiceGuiApp:
                         break
             
             # Run the DSPy agent in a separate thread
-            with dspy.context(track_usage=True):
+            with dspy.context():
                 prediction = await asyncio.to_thread(
                     self.dspy_agent, question=user_question, context=agent_context
                 )
@@ -762,37 +850,37 @@ class NiceGuiApp:
             #     completion_cost = usage_data.completion_tokens * pricing.get("completion", 0)
             #     total_cost = prompt_cost + completion_cost
 
-            logging.info("Calculating cost by manually aggregating from lm.history...")
-            total_prompt_tokens = 0
-            total_completion_tokens = 0
-            cost_calculated = False
+            # logging.info("Calculating cost by manually aggregating from lm.history...")
+            # total_prompt_tokens = 0
+            # total_completion_tokens = 0
+            # cost_calculated = False
 
-            # The history is on the configured language model object itself.
-            lm_history = dspy.settings.lm.history if hasattr(dspy.settings.lm, 'history') else []
+            # # The history is on the configured language model object itself.
+            # lm_history = dspy.settings.lm.history if hasattr(dspy.settings.lm, 'history') else []
 
-            if lm_history:
-                for api_call in lm_history:
-                    # According to the documentation, 'usage' is a direct key in each history entry.
-                    usage_data = api_call.get('usage')
-                    if usage_data:
-                        prompt_tokens = usage_data.get("prompt_tokens", 0)
-                        completion_tokens = usage_data.get("completion_tokens", 0)
-                        total_prompt_tokens += prompt_tokens
-                        total_completion_tokens += completion_tokens
+            # if lm_history:
+            #     for api_call in lm_history:
+            #         # According to the documentation, 'usage' is a direct key in each history entry.
+            #         usage_data = api_call.get('usage')
+            #         if usage_data:
+            #             prompt_tokens = usage_data.get("prompt_tokens", 0)
+            #             completion_tokens = usage_data.get("completion_tokens", 0)
+            #             total_prompt_tokens += prompt_tokens
+            #             total_completion_tokens += completion_tokens
 
-                if total_prompt_tokens > 0 or total_completion_tokens > 0:
-                    pricing = MODEL_PRICING.get(self.selected_model_id, {})
-                    prompt_cost = total_prompt_tokens * pricing.get("prompt", 0)
-                    completion_cost = total_completion_tokens * pricing.get("completion", 0)
-                    total_cost = prompt_cost + completion_cost
-                    logging.info(
-                        f"SUCCESS: Final cost is ${total_cost:.6f} from "
-                        f"({total_prompt_tokens} prompt + {total_completion_tokens} completion tokens)"
-                    )
-                    cost_calculated = True
+            #     if total_prompt_tokens > 0 or total_completion_tokens > 0:
+            #         pricing = MODEL_PRICING.get(self.selected_model_id, {})
+            #         prompt_cost = total_prompt_tokens * pricing.get("prompt", 0)
+            #         completion_cost = total_completion_tokens * pricing.get("completion", 0)
+            #         total_cost = prompt_cost + completion_cost
+            #         logging.info(
+            #             f"SUCCESS: Final cost is ${total_cost:.6f} from "
+            #             f"({total_prompt_tokens} prompt + {total_completion_tokens} completion tokens)"
+            #         )
+            #         cost_calculated = True
 
-            if not cost_calculated:
-                logging.error("FAILURE: No usage data was found in any lm.history entries after the call.")
+            # if not cost_calculated:
+            #     logging.error("FAILURE: No usage data was found in any lm.history entries after the call.")
 
             
             # --- Enhanced Debugging for Prediction and Trajectory ---
@@ -840,15 +928,15 @@ class NiceGuiApp:
 
             formatted_middle_steps = self.format_raw_middle_steps_for_display(trajectory_data)
             
-            if prediction and hasattr(prediction, 'final_answer') and prediction.final_answer:
-                parsed_response_dict = self.parse_response_content_for_nicegui(prediction.final_answer)
-            elif prediction: # If no final_answer but prediction exists
-                logging.warning("Prediction object does not have 'final_answer' attribute or it's empty. Using str(prediction) as explanation.")
+            if prediction and hasattr(prediction, 'answer') and prediction.answer:
+                parsed_response_dict = self.parse_response_content_for_nicegui(prediction.answer)
+            elif prediction: # If no answer but prediction exists
+                logging.warning("Prediction object does not have 'answer' attribute or it's empty. Using str(prediction) as explanation.")
                 # The prediction itself might be the string output if the signature wasn't fully adhered to
                 parsed_response_dict = self.parse_response_content_for_nicegui(str(prediction))
             else: # Prediction is None or no useful content
                 parsed_response_dict = {"explanation": "Agent did not return a valid response.", "plots": [], "files": [], "next_steps_suggestion": []}
-                logging.error("Agent did not return a usable response (prediction is None or lacks final_answer).")
+                logging.error("Agent did not return a usable response (prediction is None or lacks answer).")
 
         except Exception as e:
             logging.error(f"Error during DSPy agent interaction for '{user_question}': {e}", exc_info=True)
@@ -914,7 +1002,7 @@ class NiceGuiApp:
             "middle_steps": formatted_middle_steps,
             "type": "text_with_attachments",
             "next_steps": parsed_response_dict.get("next_steps_suggestion", []),
-            "cost": total_cost, 
+            # "cost": total_cost, 
         }
         self.messages.append(assistant_message)
         self.memory.append(f"Assistant: {str(assistant_message['content'])[:200]}...") 
@@ -928,7 +1016,7 @@ class NiceGuiApp:
             self.show_details_for_message(new_assistant_message_idx)
 
     def parse_response_content_for_nicegui(self, final_answer_json_str: str | dict ):
-        """Parses the JSON string from DSPy agent's final_answer field."""
+        """Parses the JSON string from DSPy agent's answer field."""
         if isinstance(final_answer_json_str, dict): # Already a dict
             # Ensure standard keys
             return {
@@ -1081,10 +1169,31 @@ class NiceGuiApp:
     async def on_page_load_actions(self, client: Client):
         logging.info(f"Client connected (User: {self.user_id}). Loading initial actions.")
         dataset_loaded = False
+        # if self.initial_dataset_path_from_arg and self.initial_dataset_path_from_arg.exists():
+        #     self.current_dataset_file_path = self.initial_dataset_path_from_arg
+        #     self.current_dataset_display_name = self.current_dataset_file_path.name
+        #     self.current_input_data_type = self.cli_args.input_data_type
+        #     ui.notify(f"Loading dataset from arg: {self.current_dataset_display_name}", type='info', timeout=2000)
+        #     await self.preview_loaded_or_uploaded_dataset()
+        #     dataset_loaded = True
+        # if self.initial_dataset_path_from_arg and self.initial_dataset_path_from_arg.exists():
+        #     self.current_dataset_file_path = self.initial_dataset_path_from_arg
+            
+        #     # Apply the same logic here to check for the custom file_name
+        #     if self.cli_args.file_name:
+        #         self.current_dataset_display_name = self.cli_args.file_name
+        #     else:
+        #         self.current_dataset_display_name = self.current_dataset_file_path.name
+
+        #     self.current_input_data_type = self.cli_args.input_data_type
+
         if self.initial_dataset_path_from_arg and self.initial_dataset_path_from_arg.exists():
-            self.current_dataset_file_path = self.initial_dataset_path_from_arg
-            self.current_dataset_display_name = self.current_dataset_file_path.name
-            self.current_input_data_type = self.cli_args.input_data_type
+            display_name = self.cli_args.file_name or self.initial_dataset_path_from_arg.name
+            self.current_dataset = {
+                "path": self.initial_dataset_path_from_arg,
+                "display_name": display_name,
+                "type": self.cli_args.input_data_type,
+            }
             ui.notify(f"Loading dataset from arg: {self.current_dataset_display_name}", type='info', timeout=2000)
             await self.preview_loaded_or_uploaded_dataset()
             dataset_loaded = True
@@ -1239,7 +1348,7 @@ class NiceGuiApp:
             return
         uploaded_filename = e.name
         # Determine file type - use suffix or allow user to specify later
-        self.current_input_data_type = Path(uploaded_filename).suffix.lower().replace('.', '')
+        # self.current_input_data_type = Path(uploaded_filename).suffix.lower().replace('.', '')
         if not self.current_input_data_type: # Fallback if no suffix
             self.current_input_data_type = "csv" # Or ask user
             ui.notify(f"Could not determine file type for {uploaded_filename}, assuming CSV. You can change this if needed.", type='warning')
@@ -1250,8 +1359,14 @@ class NiceGuiApp:
             with open(temp_file_path, 'wb') as f:
                 f.write(e.content.read())
             
-            self.current_dataset_file_path = temp_file_path
-            self.current_dataset_display_name = uploaded_filename
+            # self.current_dataset_file_path = temp_file_path
+            # self.current_dataset_display_name = uploaded_filename
+
+            self.current_dataset = {
+                "path": temp_file_path,
+                "display_name": uploaded_filename,
+                "type": Path(uploaded_filename).suffix.lower().replace('.', '')
+            }
             
             # Update PythonCodeTool's dataset path if agent is already initialized
             if self.dspy_agent and hasattr(self.dspy_agent, 'react_agent') and self.dspy_agent.react_agent.tools:
@@ -1312,8 +1427,9 @@ class NiceGuiApp:
 
         self.dataset_preview_area.clear()
         with self.dataset_preview_area:
-            ui.label(f"Active: {self.current_dataset_display_name} ({self.current_input_data_type.upper()})").classes('text-md font-semibold mb-1')
+            # ui.label(f"Active: {self.current_dataset_display_name} ({self.current_input_data_type.upper()})").classes('text-md font-semibold mb-1')
             
+            ui.label(f"Active: {self.current_dataset['display_name']} ({self.current_dataset['type'].upper()})").classes('text-md font-semibold mb-1')
             self.current_data_object = self.load_data_object_from_path(self.current_dataset_file_path, self.current_input_data_type)
             
             if self.current_data_object is None:
@@ -1629,9 +1745,9 @@ class NiceGuiApp:
                                 ui.label(f_path.name).classes("font-semibold text-sm text-gray-800")
                                 ui.button(icon="download", on_click=lambda current_path=str(f_path): ui.download(current_path, filename=Path(current_path).name)) \
                                     .props("flat dense size=sm color=primary round").tooltip("Download File")
-            if source_data.get("cost") is not None:
-                ui.markdown(f"**API cost for this query:** ${source_data['cost']:.4f}") \
-                .classes("mt-3 text-sm text-gray-600")
+            # if source_data.get("cost") is not None:
+            #     ui.markdown(f"**API cost for this query:** ${source_data['cost']:.4f}") \
+            #     .classes("mt-3 text-sm text-gray-600")
 
             # --- Fallback message if no content to display ---
             if not plots_to_display and not files_to_display and \
@@ -1771,6 +1887,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     parser.add_argument("--input_type", dest="input_data_type", default="csv", help="Type of the initial dataset file (e.g., csv, tsv, h5ad).")
     parser.add_argument("--dspy_examples", dest="dspy_examples_path", default=str(DEFAULT_DSPY_EXAMPLES_FILE), help="Path to DSPy training examples JSON file.")
     parser.add_argument("--compile_dspy", dest="compile_dspy_agent", action=argparse.BooleanOptionalAction, default=True, help="Enable/disable DSPy agent compilation on startup.")
+    parser.add_argument("--file_name", dest="file_name", default=None, help="Optional file name to use for the initial dataset (if provided).")
 
 
     cli_args = parser.parse_args()
