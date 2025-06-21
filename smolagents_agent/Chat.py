@@ -13,6 +13,7 @@ import logging
 import sys
 from pathlib import Path
 import psycopg2
+import streamlit.components.v1 as components
 
 # Set logging level to DEBUG for detailed logs
 # logging.basicConfig(level=logging.DEBUG)
@@ -31,7 +32,7 @@ st.markdown("""
 <style>
     /* Target the specific section you identified (e.g., the second one) */
     div[data-testid="stAppViewContainer"] > section:nth-of-type(2) {
-        max-width: 60% !important;   /* << ADJUST THIS VALUE to your desired width */
+        max-width: 100% !important;   /* << ADJUST THIS VALUE to your desired width */
         margin-left: auto !important;
         margin-right: auto !important;
         padding-left: 2.5rem;           /* Optional: Adjust side padding */
@@ -472,11 +473,7 @@ class StreamlitApp:
             current_data_type = self.input_data_type
             pandas_compatible_types = ['csv', 'tsv', 'xlsx', 'xls', 'json', 'parquet', 'h5', 'bed']
             if current_data_type in pandas_compatible_types and isinstance(data, pd.DataFrame):
-                if not st.session_state.get("summary_stats_csv_path", None):
-                    generated_summary_path = self.generate_and_save_pandas_summary_csv(data)
-                    st.session_state["summary_stats_csv_path"] = generated_summary_path
-                else:
-                    generated_summary_path = st.session_state.get("summary_stats_csv_path", None)
+                generated_summary_path = self.generate_and_save_pandas_summary_csv(data)
                 
                 if generated_summary_path:
                     self.summary_stats_csv_path = generated_summary_path # Store path
@@ -517,15 +514,9 @@ class StreamlitApp:
             "analysis_file_path": st.session_state.get("analysis_file_path", ""),
             "input_data_type": st.session_state.get("input_data_type", ""),
             "bookmarks": st.session_state.get("bookmarks", []),
-            "summary_stats_csv_path": st.session_state.get("summary_stats_csv_path", ""),
         }
         with open(self.chat_hisory_file, "w") as f:
             json.dump(history, f, indent=2)
-        bookmark_history = {
-            "bookmarks": st.session_state.get("bookmarks", []),
-        }
-        with open("bookmarks.json", "w") as f:
-            json.dump(bookmark_history, f, indent=2)
 
 
     def load_chat_history(self):
@@ -545,14 +536,60 @@ class StreamlitApp:
                     st.session_state["analysis_file_path"] = history.get("analysis_file_path", "")
                     st.session_state["input_data_type"] = history.get("input_data_type", "")
                     st.session_state["bookmarks"] = history.get("bookmarks", [])
-                    st.session_state["summary_stats_csv_path"] = history.get("summary_stats_csv_path", "")
                 else:
                     # File is empty; initialize session state with defaults.
                     st.session_state["messages"] = []
                     st.session_state["eda_report"] = ""
                     st.session_state["memory"] = deque(maxlen=15)
                     st.session_state["bookmarks"] = []
-                    st.session_state["summary_stats_csv_path"] = ""
+        
+    
+    def display_bookmark_manager(self):
+        st.title( "Bookmark Manager")
+        bookmarks = st.session_state.get("bookmarks", [])
+        if not bookmarks:
+            st.info("No bookmarks saved.")
+            return
+
+        for i, b in enumerate(bookmarks):
+            if not b:
+                continue
+            rawq = b.get("question", "Unknown question")
+            rawa = b.get("answer", "No answer saved")
+
+            question = rawq if rawq else "Unknown question"
+            answer = rawa if rawa else "No answer saved"
+            with st.expander(f"Bookmark {i + 1}: {question[:60]}"):
+                st.markdown(f"**Question:** {question}")
+                st.markdown(f"**Answer:**\n{answer}")
+
+                if b.get("plots"):
+                    st.markdown("**Saved Plots:**")
+                    for path in b["plots"]:
+                        if os.path.exists(path):
+                            st.image(path, caption=os.path.basename(path))
+
+                if b.get("files"):
+                    st.markdown("**Saved Files:**")
+                    for path in b["files"]:
+                        if os.path.exists(path):
+                            with open(path, "rb") as f:
+                                st.download_button(
+                                    label=f"Download {os.path.basename(path)}",
+                                    data=f,
+                                    file_name=os.path.basename(path),
+                                    key=f"bm_dl_{i}_{path}"
+                                )
+
+                # if st.button("🔁 Rerun this query", key=f"rerun_bookmark_{i}"):
+                #     st.session_state["prefilled_input"] = b["question"]
+                #     
+
+                # if st.button("🗑️ Delete", key=f"delete_bookmark_{i}"):
+                #     st.session_state["bookmarks"].pop(i)
+                #     self.save_chat_history()
+                #     st.success("Bookmark deleted.")
+                #     st.experimental_rerun()
 
     
     def load_dataset_preview(self):
@@ -623,126 +660,385 @@ class StreamlitApp:
                     elif seg_type == "code":
                         st.code(seg_text)
 
+    def display_response(self, explanation, plot_paths, file_paths, next_steps_suggestion, middle_steps="", candidate_solutions=None):
+        with st.chat_message("assistant"):
+            # Clean explanation and next steps text.
+            explanation = clean_text(explanation)
+            next_steps_suggestion = clean_text(next_steps_suggestion)
+
+            msg_idx = len(st.session_state["messages"]) - 1
+            
+            # If candidate solutions are provided, display them separately.
+            if candidate_solutions is not None:
+                st.markdown("### Candidate Solutions")
+                for idx, candidate in enumerate(candidate_solutions, start=1):
+                    with st.expander(f"Candidate {idx}: {candidate.get('option', 'Option')}"):
+                        st.markdown(f"**Explanation:** {candidate.get('explanation', '')}")
+                        st.markdown(f"**Pros:** {candidate.get('pros', '')}")
+                        st.markdown(f"**Cons:** {candidate.get('cons', '')}")
+                        # A button to allow the user to refine this candidate solution.
+                        if st.button("Refine this solution", key=f"refine_candidate_{msg_idx}_{idx}"):
+                            # Pre-fill input with candidate details for refinement.
+                            st.session_state["prefilled_input"] = candidate.get("option", "") + " " + candidate.get("explanation", "")
+            else:
+                # Display the explanation text normally.
+                if "count" in explanation and "mean" in explanation and "std" in explanation:
+                    st.code(explanation)
+                else:
+                    st.markdown(explanation)
+            
+            # Display intermediate steps if available.
+            if middle_steps:
+                # self.display_middle_steps(middle_steps)
+                with st.expander("View Intermediate Steps"):
+                    st.markdown(middle_steps)
+            
+            # Display any generated plots.
+            for plot_path in plot_paths:
+                if plot_path and os.path.exists(plot_path):
+                    image = Image.open(plot_path)
+                    file_name = os.path.basename(plot_path)
+                    file_name_no_ext = os.path.splitext(file_name)[0]
+                    st.image(image, caption=file_name_no_ext)
+            
+            # Display file download buttons for any generated files.
+            for file_path in file_paths:
+                if file_path and os.path.exists(file_path):
+                    
+                    if file_path.lower().endswith(".csv"):
+                        try:
+                            df = pd.read_csv(file_path)
+                            st.markdown(f"Preview of **{os.path.basename(file_path)}**:")
+                            st.dataframe(df)
+                        except Exception as e:
+                            print(f"Error reading CSV file {os.path.basename(file_path)}: {e}")
+                    if file_path.lower().endswith(".tsv"):
+                        try:
+                            df = pd.read_csv(file_path, sep="\t")
+                            st.markdown(f"Preview of **{os.path.basename(file_path)}**:")
+                            st.dataframe(df)
+                        except Exception as e:
+                            print(f"Error reading CSV file {os.path.basename(file_path)}: {e}")
+
+                    unique_key = str(uuid.uuid4())
+                    with open(file_path, "rb") as f:
+                        st.download_button(
+                            label=f"Download {os.path.basename(file_path)}",
+                            data=f,
+                            file_name=os.path.basename(file_path),
+                            key=f"download_{unique_key}"
+                        )
+
+            bookmark_data = {
+                "question": st.session_state["messages"][-2]["content"] if len(st.session_state["messages"]) > 1 else "Unknown",
+                "answer": explanation,
+                "plots": plot_paths,
+                "files": file_paths,
+            }
+            
+            if st.button("🔖 Bookmark this response", key=f"bookmark_{msg_idx}"):
+                st.session_state["bookmarks"].append(bookmark_data)
+                st.session_state["messages"][msg_idx]["bookmarked"] = True
+                self.save_chat_history()
+                st.rerun()
+                st.success("Response bookmarked!")
+
+            
+            if st.session_state.get("db_available", False):
+                if not st.session_state.get(f"feedback_submitted_{msg_idx}", False):
+                    col1, col2 = st.columns(2)
+                    # The on_click callback immediately stores the feedback.
+                    col1.button("👍", key=f"thumbs_up_{msg_idx}", on_click=self.submit_feedback_response, args=("Yes", msg_idx))
+                    col2.button("👎", key=f"thumbs_down_{msg_idx}", on_click=self.submit_feedback_response, args=("No", msg_idx))
+                else:
+                    st.info("Feedback recorded!")
+                    # Allow the user to add or update an optional comment.
+                    comment = st.text_area("Optional comment:", key=f"feedback_comment_{msg_idx}")
+                    if st.button("Update Comment", key=f"update_comment_{msg_idx}"):
+                        feedback_id = st.session_state.get(f"feedback_id_{msg_idx}")
+                        update_feedback_comment(feedback_id, comment)
+                        st.success("Comment updated!")
+            
+            if not candidate_solutions and next_steps_suggestion:
+                suggestions = [s.strip() for s in next_steps_suggestion.split("\n") if s.strip()]
+                self.display_suggestion_buttons(suggestions)
+                st.markdown("Please let me know if you want to proceed with any of the suggestions or ask any other questions.")
+
+
     def display_chat_history(self):
         messages = st.session_state.get("messages", [])
         
-        for idx, message in enumerate(messages):
-            if not message or not message.get("role") or not message.get("content"):
-                continue
-            with st.chat_message(message["role"]):
-                # Display the main content.
-                if "count" in message.get("content", "") and "mean" in message.get("content", "") and "std" in message.get("content", ""):
-                    st.code(message["content"])
-                else:
-                    st.markdown(message["content"])
+    #     for idx, message in enumerate(messages):
+    #         if not message or not message.get("role") or not message.get("content"):
+    #             continue
+    #         with st.chat_message(message["role"]):
+    #             # Display the main content.
+    #             if "count" in message.get("content", "") and "mean" in message.get("content", "") and "std" in message.get("content", ""):
+    #                 st.code(message["content"])
+    #             else:
+    #                 st.markdown(message["content"])
 
-                # Display candidate solutions if they exist.
-                if "candidate_solutions" in message and message["candidate_solutions"]:
-                    st.markdown("### Candidate Solutions")
-                    for c_idx, candidate in enumerate(message["candidate_solutions"], start=1):
-                        with st.expander(f"Candidate {c_idx}: {candidate.get('option', 'Option')}"):
-                            st.markdown(f"**Explanation:** {candidate.get('explanation', '')}")
-                            st.markdown(f"**Pros:** {candidate.get('pros', '')}")
-                            st.markdown(f"**Cons:** {candidate.get('cons', '')}")
-                            if st.button("Refine this solution", key=f"history_refine_candidate_{idx}_{c_idx}"):
-                                prefill = candidate.get("option", "") + " " + candidate.get("explanation", "")
-                                st.session_state["prefilled_input"] = prefill
+    #             # Display candidate solutions if they exist.
+    #             if "candidate_solutions" in message and message["candidate_solutions"]:
+    #                 st.markdown("### Candidate Solutions")
+    #                 for c_idx, candidate in enumerate(message["candidate_solutions"], start=1):
+    #                     with st.expander(f"Candidate {c_idx}: {candidate.get('option', 'Option')}"):
+    #                         st.markdown(f"**Explanation:** {candidate.get('explanation', '')}")
+    #                         st.markdown(f"**Pros:** {candidate.get('pros', '')}")
+    #                         st.markdown(f"**Cons:** {candidate.get('cons', '')}")
+    #                         if st.button("Refine this solution", key=f"history_refine_candidate_{idx}_{c_idx}"):
+    #                             prefill = candidate.get("option", "") + " " + candidate.get("explanation", "")
+    #                             st.session_state["prefilled_input"] = prefill
 
-                # Display intermediate steps if available.
-                if "middle_steps" in message and message["middle_steps"]:
-                    with st.expander("View Intermediate Steps"):
-                        st.markdown(message["middle_steps"])
+    #             # Display intermediate steps if available.
+    #             if "middle_steps" in message and message["middle_steps"]:
+    #                 with st.expander("View Intermediate Steps"):
+    #                     st.markdown(message["middle_steps"])
 
-                # Display any generated plots.
-                if "image_paths" in message:
-                    for plot_path in message["image_paths"]:
-                        if os.path.exists(plot_path):
-                            image = Image.open(plot_path)
-                            file_name = os.path.basename(plot_path)
-                            file_name_no_ext = os.path.splitext(file_name)[0]
-                            st.image(image, caption=file_name_no_ext)
+    #             # Display any generated plots.
+    #             if "image_paths" in message:
+    #                 for plot_path in message["image_paths"]:
+    #                     if os.path.exists(plot_path):
+    #                         image = Image.open(plot_path)
+    #                         file_name = os.path.basename(plot_path)
+    #                         file_name_no_ext = os.path.splitext(file_name)[0]
+    #                         st.image(image, caption=file_name_no_ext)
 
-                # Display file download buttons for any generated files.
-                if "file_paths" in message:
-                    for file_path in message["file_paths"]:
-                        if os.path.exists(file_path):
+    #             # Display file download buttons for any generated files.
+    #             if "file_paths" in message:
+    #                 for file_path in message["file_paths"]:
+    #                     if os.path.exists(file_path):
                             
                             
-                            if file_path.lower().endswith(".tsv"):
-                                try:
-                                    df = pd.read_csv(file_path, sep="\t")
-                                    st.markdown(f"Preview of **{os.path.basename(file_path)}**:")
-                                    st.dataframe(df)
-                                except Exception as e:
-                                    print(f"Error reading CSV file {os.path.basename(file_path)}: {e}")
+    #                         if file_path.lower().endswith(".tsv"):
+    #                             try:
+    #                                 df = pd.read_csv(file_path, sep="\t")
+    #                                 st.markdown(f"Preview of **{os.path.basename(file_path)}**:")
+    #                                 st.dataframe(df)
+    #                             except Exception as e:
+    #                                 print(f"Error reading CSV file {os.path.basename(file_path)}: {e}")
                             
-                            if file_path.lower().endswith(".csv"):
-                                try:
-                                    df = pd.read_csv(file_path)
-                                    st.markdown(f"Preview of **{os.path.basename(file_path)}**:")
-                                    st.dataframe(df)
-                                except Exception as e:
-                                    print(f"Error reading CSV file {os.path.basename(file_path)}: {e}")
+    #                         if file_path.lower().endswith(".csv"):
+    #                             try:
+    #                                 df = pd.read_csv(file_path)
+    #                                 st.markdown(f"Preview of **{os.path.basename(file_path)}**:")
+    #                                 st.dataframe(df)
+    #                             except Exception as e:
+    #                                 print(f"Error reading CSV file {os.path.basename(file_path)}: {e}")
 
-                            unique_key = str(uuid.uuid4())
-                            with open(file_path, "rb") as f:
-                                st.download_button(
-                                    label=f"Download {os.path.basename(file_path)}",
-                                    data=f,
-                                    file_name=os.path.basename(file_path),
-                                    key=f"history_download_{unique_key}"
-                                )
+    #                         unique_key = str(uuid.uuid4())
+    #                         with open(file_path, "rb") as f:
+    #                             st.download_button(
+    #                                 label=f"Download {os.path.basename(file_path)}",
+    #                                 data=f,
+    #                                 file_name=os.path.basename(file_path),
+    #                                 key=f"history_download_{unique_key}"
+    #                             )
                 
                 
-                if message["role"] == "assistant":
-                # If feedback hasn't been submitted for this message, show the thumbs buttons.
-                    if st.session_state.get("db_available", False):
-                        if not st.session_state.get(f"feedback_submitted_{idx}", False):
-                            col1, col2 = st.columns(2)
-                            col1.button("👍", key=f"thumbs_up_{idx}", on_click=self.submit_feedback_response, args=("Yes", idx))
-                            col2.button("👎", key=f"thumbs_down_{idx}", on_click=self.submit_feedback_response, args=("No", idx))
+    #             if message["role"] == "assistant":
+    #             # If feedback hasn't been submitted for this message, show the thumbs buttons.
+    #                 if st.session_state.get("db_available", False):
+    #                     if not st.session_state.get(f"feedback_submitted_{idx}", False):
+    #                         col1, col2 = st.columns(2)
+    #                         col1.button("👍", key=f"thumbs_up_{idx}", on_click=self.submit_feedback_response, args=("Yes", idx))
+    #                         col2.button("👎", key=f"thumbs_down_{idx}", on_click=self.submit_feedback_response, args=("No", idx))
                             
-                        else:
-                            st.info("Feedback recorded!")
-                            comment = st.text_area("Optional comment:", key=f"feedback_comment_{idx}")
-                            if st.button("Update Comment", key=f"update_comment_{idx}"):
-                                feedback_id = st.session_state.get(f"feedback_id_{idx}")
-                                update_feedback_comment(feedback_id, comment)
-                                st.success("Comment updated!")
+    #                     else:
+    #                         st.info("Feedback recorded!")
+    #                         comment = st.text_area("Optional comment:", key=f"feedback_comment_{idx}")
+    #                         if st.button("Update Comment", key=f"update_comment_{idx}"):
+    #                             feedback_id = st.session_state.get(f"feedback_id_{idx}")
+    #                             update_feedback_comment(feedback_id, comment)
+    #                             st.success("Comment updated!")
                     
-                    if not message.get("bookmarked", False):
-                        # Grab the preceding user message if it exists, else leave blank
-                        prev_q = (
-                            messages[idx - 1]["content"]
-                            if idx > 0 and messages[idx - 1]["role"] == "user"
-                            else ""
-                        )
-                        bookmark_data = {
-                            "question": prev_q,
-                            "answer": message["content"],
-                            "plots": message.get("image_paths", []),
-                            "files": message.get("file_paths", [])
-                        }
-                        if st.button("🔖 Bookmark this response", key=f"bookmark_{idx}"):
-                            st.session_state["bookmarks"].append(bookmark_data)
-                            # mark in-place so button won’t reappear
-                            st.session_state["messages"][idx]["bookmarked"] = True
-                            self.save_chat_history()
-                            st.rerun()
-                            st.success("Response bookmarked!")
-                    else:
-                        st.markdown("✅ Bookmarked")
+    #                 if not message.get("bookmarked", False):
+    #                     # Grab the preceding user message if it exists, else leave blank
+    #                     prev_q = (
+    #                         messages[idx - 1]["content"]
+    #                         if idx > 0 and messages[idx - 1]["role"] == "user"
+    #                         else ""
+    #                     )
+    #                     bookmark_data = {
+    #                         "question": prev_q,
+    #                         "answer": message["content"],
+    #                         "plots": message.get("image_paths", []),
+    #                         "files": message.get("file_paths", [])
+    #                     }
+    #                     if st.button("🔖 Bookmark this response", key=f"bookmark_{idx}"):
+    #                         st.session_state["bookmarks"].append(bookmark_data)
+    #                         # mark in-place so button won’t reappear
+    #                         st.session_state["messages"][idx]["bookmarked"] = True
+    #                         self.save_chat_history()
+    #                         st.rerun()
+    #                         st.success("Response bookmarked!")
+    #                 else:
+    #                     st.markdown("✅ Bookmarked")
                 
-                # Display next steps suggestions.
-                if "next_steps_suggestion" in message and message["next_steps_suggestion"] and idx != len(messages) - 1:
-                    st.markdown(f"**Next Steps Suggestion:** \n* {message['next_steps_suggestion']}")
+    #             # Display next steps suggestions.
+    #             if "next_steps_suggestion" in message and message["next_steps_suggestion"] and idx != len(messages) - 1:
+    #                 st.markdown(f"**Next Steps Suggestion:** \n* {message['next_steps_suggestion']}")
                             
-        if messages:
-            last_message = messages[-1]
-            # Only display suggestion buttons if the last message is from the assistant and has suggestions
-            if last_message["role"] == "assistant" and last_message.get("next_steps_suggestion") and not last_message.get("candidate_solutions"):
-                suggestions = [s.strip() for s in last_message["next_steps_suggestion"].split("\n") if s.strip()]
-                self.display_suggestion_buttons(suggestions)
+    #     if messages:
+    #         last_message = messages[-1]
+    #         # Only display suggestion buttons if the last message is from the assistant and has suggestions
+    #         if last_message["role"] == "assistant" and last_message.get("next_steps_suggestion") and not last_message.get("candidate_solutions"):
+    #             suggestions = [s.strip() for s in last_message["next_steps_suggestion"].split("\n") if s.strip()]
+    #             self.display_suggestion_buttons(suggestions)
+
+    # def display_chat_history(self):
+    #     # Two‑pane layout: left for chat messages & input, right for details
+    #     css = '''
+    #     <style>
+    #     /* Target the first column's element container for scrolling */
+    #     div[data-testid="column"] > div > div {
+    #         max-height: 70vh;
+    #         overflow-y: auto;
+    #     }
+    #     </style>
+    #     '''
+    #     st.markdown(css, unsafe_allow_html=True)
+    #     left_col, right_col = st.columns([2, 3])
+    #     # Initialize selection
+    #     if "selected_idx" not in st.session_state:
+    #         st.session_state.selected_idx = None
+
+    #     # LEFT COLUMN: chat messages with inline "Details" buttons
+    #     with left_col:
+    #         st.markdown("### Chat")
+            
+            
+    #         for i, msg in enumerate(st.session_state.get("messages", [])):
+    #             # Render chat bubble
+    #             with st.chat_message(msg.get("role", "assistant")):
+    #                 st.markdown(msg.get("content", ""))
+    #                 # If assistant message has attachments, show small 'Details' button
+    #                 has_images = bool(msg.get("image_paths"))
+    #                 has_files  = bool(msg.get("file_paths"))
+    #                 if msg.get("role") == "assistant" and (has_images or has_files):
+    #                     if st.button("Details 🔍", key=f"details_{i}"):
+    #                         st.session_state.selected_idx = i
+            
+    #         st.markdown("---")
+    #         # Chat input
+    #         question = st.chat_input("Ask a question about the dataset")
+    #         if question or st.session_state.get("prefilled_input"):
+    #             if st.session_state.get("prefilled_input"):
+    #                 question = st.session_state["prefilled_input"]
+    #             st.session_state["prefilled_input"] = None
+    #             self.handle_user_input(st.session_state.get("analysis_file_path", ""), question)
+
+    #     # RIGHT COLUMN: show plots/tables for selected message
+    #     with right_col:
+    #         idx = st.session_state.get("selected_idx")
+    #         if idx is None:
+    #             st.info("Click 'Details' on an assistant message to view its plots & tables here.")
+            
+    #         else:
+    #             msg = st.session_state["messages"][idx]
+    #             st.markdown(f"### Details for query: {st.session_state['messages'][idx-1].get('content')}")
+    #             # Show images
+    #             if msg.get("image_paths"):
+    #                 st.markdown("#### Images")
+    #                 for img in msg["image_paths"]:
+    #                     st.image(img)
+    #             # Show data files / tables
+    #             if msg.get("file_paths"):
+    #                 st.markdown("#### Tables & Downloads")
+    #                 for path in msg["file_paths"]:
+    #                     fname = os.path.basename(path)
+    #                     if fname.lower().endswith(('.csv', '.tsv')):
+    #                         df = pd.read_csv(path, sep="\t" if fname.lower().endswith('tsv') else ",")
+    #                         st.dataframe(df)
+    #                     with open(path, "rb") as f:
+    #                         st.download_button(
+    #                             label=f"Download {fname}", data=f, file_name=fname,
+    #                             key=f"dl_{idx}_{fname}"
+    #                         )
+    #     # end display_chat_history
+
+    def display_chat_history(self):
+        # Inject CSS for two scrollable areas
+        st.markdown(
+            """
+            <style>
+            .scroll-left {
+                max-height: 80vh;
+                overflow-y: auto;
+                padding-right: 1rem;
+            }
+            .scroll-right {
+                max-height: 80vh;
+                overflow-y: auto;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        left_col, right_col = st.columns([2, 1])
+
+        if "selected_idx" not in st.session_state:
+            st.session_state.selected_idx = None
+
+        # LEFT COLUMN: Chat
+        with left_col:
+            st.markdown("### Chat")
+            with st.container():
+                st.markdown('<div class="scroll-left">', unsafe_allow_html=True)
+
+                for i, msg in enumerate(st.session_state.get("messages", [])):
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
+                        if (
+                            msg["role"] == "assistant"
+                            and (msg.get("image_paths") or msg.get("file_paths"))
+                        ):
+                            if st.button("Details 🔍", key=f"detail_btn_{i}"):
+                                st.session_state.selected_idx = i
+
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            st.markdown("---")
+            question = st.chat_input("Ask a question about the dataset")
+            if question:
+                self.handle_user_input(
+                    st.session_state.get("analysis_file_path", ""), question
+                )
+
+        # RIGHT COLUMN: Details
+        with right_col:
+            st.markdown("### Details")
+            with st.container():
+                st.markdown('<div class="scroll-right">', unsafe_allow_html=True)
+
+                idx = st.session_state.selected_idx
+                if idx is None:
+                    st.info("Click 'Details' to view assistant-generated plots and tables.")
+                else:
+                    msg = st.session_state["messages"][idx]
+                    if msg.get("image_paths"):
+                        st.markdown("#### Images")
+                        for p in msg["image_paths"]:
+                            st.image(p)
+                    if msg.get("file_paths"):
+                        st.markdown("#### Tables & Downloads")
+                        for p in msg["file_paths"]:
+                            fname = os.path.basename(p)
+                            df = pd.read_csv(p, sep="\t" if fname.lower().endswith("tsv") else ",")
+                            st.dataframe(df)
+                            with open(p, "rb") as f:
+                                st.download_button(
+                                    f"Download {fname}",
+                                    f,
+                                    file_name=fname,
+                                    key=f"dl_{idx}_{fname}",
+                                )
+
+                st.markdown("</div>", unsafe_allow_html=True)
+
+
+       
 
     def display_suggestion_buttons(self, suggestions):
         """Display next step suggestions as clickable links inside the chat."""
@@ -774,11 +1070,10 @@ class StreamlitApp:
                 f"- You should find an appropriate method to generate plots for this query. If a plot or file is generated, save it in the directory {self.output_dir} with a random numerical suffix to prevent overwrites.\n"
                 "- Do not generate filenames like 'random_forest_model_XXXX.joblib'.\n"
                 "- Always consider to generate plots or files to support your answer.\n"
-                f"- If plots are generated, if possible, put the data used to generate the plots in csv files in the {self.output_dir} directory.\n"
                 "- Always call the final_answer tool, providing the final answer in the following dictionary format (do not format as a JSON code block):\n"
                 '{ "explanation": ["Your explanation here, in plain text. This can include detailed information or step-by-step guidance."], '
-                '"plots": ["<path_to_the_image>" (leave the list empty if no plots are needed)], '
-                '"files": ["<path_to_the_file>" (leave the list empty if no files are needed)], '
+                '"plots": ["<path_to_the_image>" (leave empty if no plots are needed)], '
+                '"files": ["<path_to_the_file>" (leave empty if no files are needed)], '
                 '"next_steps_suggestion": ["List of possible next questions the user could ask to gain further insights. They should be questions. Only include this when the user has not explicitly asked for suggestions."] }'
             )
         elif question_type == 1:
@@ -792,8 +1087,8 @@ class StreamlitApp:
                 "- Always consider to generate plots or files to support your answer.\n"
                 "- Always call the final_answer tool, providing the final answer in the following dictionary format (do not format as a JSON code block):\n"
                 '{ "explanation": ["Your explanation here, in plain text. This can include detailed information or step-by-step guidance."], '
-                '"plots": ["<path_to_the_image>" (leave the list empty if no plots are needed)], '
-                '"files": ["<path_to_the_file>" (leave the list empty if no files are needed)], '
+                '"plots": ["<path_to_the_image>" (leave empty if no plots are needed)], '
+                '"files": ["<path_to_the_file>" (leave empty if no files are needed)], '
                 '"next_steps_suggestion": ["List of possible next questions the user could ask to gain further insights. They should be questions. Only include this when the user has not explicitly asked for suggestions."] }'
             )
         else:
@@ -812,10 +1107,9 @@ class StreamlitApp:
                 f"- If a plot or file is generated, save it in the {self.output_dir} directory with a random numerical suffix to prevent overwrites.\n"
                 "- Do not generate filenames like 'random_forest_model_XXXX.joblib'.\n"
                 "- Always consider to generate plots or files to support your answer.\n"
-                f"- If plots are generated, if possible, put the data used to generate the plots in csv files in the {self.output_dir} directory.\n"
                 "- Always call the final_answer tool, providing the final answer in one of the following dictionary formats (do not format as a JSON code block):\n\n"
                 "Simple answer format:\n"
-                '{ "explanation": ["Your explanation text. in plain text. This can include detailed information or step-by-step guidance."], "plots": ["<path_to_image>" (leave the list empty if no plots are needed)], "files": ["<path_to_file>" (leave the list empty if no files are needed)], "next_steps_suggestion": ["Suggestion 1", "Suggestion 2"] }\n\n'
+                '{ "explanation": ["Your explanation text. in plain text. This can include detailed information or step-by-step guidance."], "plots": ["<path_to_image>"], "files": ["<path_to_file>"], "next_steps_suggestion": ["Suggestion 1", "Suggestion 2"] }\n\n'
                 "Multiple candidate solutions format:\n"
                 '{ "candidate_solutions": [ { "option": "Solution 1", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." }, { "option": "Solution 2", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." }, { "option": "Solution 3", "explanation": "Detailed explanation...", "pros": "Pros...", "cons": "Cons..." } ], "next_steps_suggestion": ["Which option would you like to refine?", "Or ask for more details on a candidate solution."] }'
             )
@@ -893,7 +1187,7 @@ class StreamlitApp:
                 # )
 
                 file_paths = parsed.get("files", [])
-                file_paths = [eda_file_path] + file_paths if file_paths else [eda_file_path]
+                file_paths = [eda_file_path] + file_paths
 
                 eda_result_message = {
                     "role": "assistant",
@@ -906,8 +1200,14 @@ class StreamlitApp:
                 st.session_state["messages"].append(eda_result_message)
                 st.session_state["memory"].append(f"Assistant (EDA): {report_text}")
 
+                self.display_response(
+                    explanation=report_text,
+                    plot_paths=parsed.get("plots", []) if parsed else [],
+                    file_paths=file_paths,
+                    next_steps_suggestion="  \n* ".join(parsed.get("next_steps_suggestion", [])) if parsed else "",
+                    middle_steps=middle_steps
+                )
                 self.save_chat_history()
-                st.rerun()
             except Exception as e:
                 st.error(f"Error during EDA: {e}")
 
@@ -959,6 +1259,15 @@ class StreamlitApp:
                         "middle_steps": middle_steps
                     })
                     st.session_state["memory"].append(f"{role.capitalize()}: Multiple candidate solutions generated.")
+                    # Display candidate solutions
+                    self.display_response(
+                        explanation="Multiple candidate solutions generated.",
+                        plot_paths=[],
+                        file_paths=[],
+                        next_steps_suggestion=next_steps,
+                        middle_steps=middle_steps,
+                        candidate_solutions=candidate_list
+                    )
                     
                 else:
                     message = {
@@ -979,6 +1288,13 @@ class StreamlitApp:
                         "middle_steps": message["middle_steps"]
                     })
                     st.session_state["memory"].append(f"{role.capitalize()}: {message['explanation']}")
+                    self.display_response(
+                        message["explanation"],
+                        message["plots"],
+                        message["files"],
+                        message["next_steps_suggestion"],
+                        message["middle_steps"]
+                    )
                     
             else:
                 st.session_state["messages"].append({
@@ -1001,6 +1317,14 @@ class StreamlitApp:
                     "middle_steps": middle_steps
                 })
                 st.session_state["memory"].append("Assistant: Multiple candidate solutions generated.")
+                self.display_response(
+                    explanation="",
+                    plot_paths=[],
+                    file_paths=[],
+                    next_steps_suggestion=next_steps,
+                    middle_steps=middle_steps,
+                    candidate_solutions=candidate_list
+                )
                 
             else:
                 message = {
@@ -1022,6 +1346,13 @@ class StreamlitApp:
                     "middle_steps": message["middle_steps"]
                 })
                 st.session_state["memory"].append("Assistant: " + message["explanation"])
+                self.display_response(
+                    message["explanation"],
+                    message["plots"],
+                    message["files"],
+                    message["next_steps_suggestion"],
+                    message["middle_steps"]
+                )
                 
 
         # Case 3: Response is a plain string.
@@ -1041,8 +1372,6 @@ class StreamlitApp:
                 "role": "assistant",
                 "content": f"Response received:\n\n{response}\n"
             })
-        self.save_chat_history()
-        st.rerun()
 
 
 
@@ -1105,12 +1434,12 @@ class StreamlitApp:
             # if uploaded_file is not None:
             #     df.to_csv("uploaded_dataset.csv", index=False)
             
-            user_question = st.chat_input("Ask a question about the dataset")
-            if user_question or st.session_state.get("prefilled_input"):
-                if st.session_state.get("prefilled_input"):
-                    user_question = st.session_state["prefilled_input"]
-                st.session_state["prefilled_input"] = None
-                self.handle_user_input(st.session_state["analysis_file_path"] , user_question)
+            # user_question = st.chat_input("Ask a question about the dataset")
+            # if user_question or st.session_state.get("prefilled_input"):
+            #     if st.session_state.get("prefilled_input"):
+            #         user_question = st.session_state["prefilled_input"]
+            #     st.session_state["prefilled_input"] = None
+            #     self.handle_user_input(st.session_state["analysis_file_path"] , user_question)
 
             st.sidebar.markdown("---")
             st.sidebar.markdown("### Exploratory Data Analysis")
@@ -1135,8 +1464,8 @@ class StreamlitApp:
             if os.path.exists(st.session_state["analysis_file_path"]):
                 if st.sidebar.button("Correlation Matrix", key="corr_matrix"):
                     self.handle_user_input(st.session_state["analysis_file_path"], "Show the correlation matrix of the features.")
-                if st.sidebar.button("Identify missing values & drop sparse columns", key="missing_values"):
-                    self.handle_user_input(st.session_state["analysis_file_path"], "Are there any missing values in the dataset? If so, which columns contain them? If applicable, remove the columns with mostly missing values and return the modified dataset. Only return the dataset if it was modified.")
+                if st.sidebar.button("Missing Values", key="missing_values"):
+                    self.handle_user_input(st.session_state["analysis_file_path"], "What are the missing values in the dataset?")
                 if st.sidebar.button("Numerical Feature Distribution", key="num_dist"):
                     self.handle_user_input(st.session_state["analysis_file_path"], "Show the distribution of numerical features.")
                 # if st.sidebar.button("Summary Statistics", key="summary_stats"):

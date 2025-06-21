@@ -1,0 +1,34 @@
+# Core Application & Frameworks
+nicegui
+dspy-ai==2.6.24
+python-dotenv
+cloudpickle
+psycopg2-binary
+structlog 
+
+# Core Data Science & Plotting
+pandas
+numpy>=1.24.0
+scipy
+matplotlib
+seaborn
+Pillow
+plotly
+openpyxl
+pyarrow
+tables
+statsmodels
+
+# Machine Learning & Modeling
+scikit-learn
+joblib
+autogluon
+xgboost
+lightgbm
+catboost
+
+# Bioinformatics
+anndata
+biopython
+pysam
+gffutils
