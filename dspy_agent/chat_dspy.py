@@ -122,22 +122,6 @@ AUTHORIZED_MODULES_FOR_CODE_TOOL = [
      "anndata", "Bio", "vcf", "statsmodels", "plotly", "itertools", "collections", "json",
 ]
 
-class FinishTool(dspy.Tool):
-    """A dummy tool that signals the end of the interaction and provides the final answer."""
-    name = "finish"
-    input_variable = "final_answer"
-    output_variable = "text"
-    description = "Use this action to end the interaction and provide the final answer."
-
-    def __init__(self):
-        # This line registers the __call__ method as the function to run for this tool.
-        super().__init__(func=self.__call__)
-
-    def __call__(self, final_answer: str) -> str:
-        # This tool doesn't need to do anything. Its only job is
-        # to exist and have the correct signature for validation.
-        return "Final answer received."
-
 class PythonCodeTool(dspy.Tool):
     name = "python_code_executor"
     input_variable = "code"
@@ -295,11 +279,11 @@ class DataAnalysisSignature(dspy.Signature):
     **IMPORTANT: To prevent file conflicts, all generated file and plot names MUST end with a unique suffix (e.g., a short random string or number). For example, save 'plot.png' as 'plot_a8d3.png'.**
 
     When you have gathered all the necessary information and are ready to provide the final answer,
-    you MUST use the special 'finish' action. The 'finish' action requires a single argument: 'final_answer'.
-    The value for 'answer' MUST be a single, valid JSON string.
+    you MUST use the special 'finish' action.
+    The 'finish' action takes NO arguments.
     Here is a literal example of the final step:
-    Thought: I have collected all the results and I am ready to provide the final answer.
-    Action: finish(answer='{"explanation": "The analysis is complete.", "plots": ["generated_files/plot1.png"], "files": ["generated_files/data.csv"], "next_steps_suggestion": ["Consider further analysis."]}')
+    Thought: I have collected all the results and I am ready to provide the final answer. 'answer={"explanation": "The analysis is complete.", "plots": ["generated_files/plot1.png"], "files": ["generated_files/data.csv"], "next_steps_suggestion": ["Consider further analysis."]}'
+    Action: finish()
 
     Finally, provide a comprehensive answer to the user in JSON format. This JSON MUST include:
     - "explanation": A textual explanation of what was done and the insights.
@@ -309,7 +293,7 @@ class DataAnalysisSignature(dspy.Signature):
     """
     context = dspy.InputField(desc="Provides context: conversation history, current dataset path, dataset type, and output directory information.")
     question = dspy.InputField(desc="The user's question or data analysis task.")
-    final_answer = dspy.OutputField(desc=f"A JSON string with 'explanation', 'plots' (list of strings relative to '{AGENT_GENERATED_FILES_SUBDIR.name}/'), 'files' (list of strings relative to '{AGENT_GENERATED_FILES_SUBDIR.name}/'), and 'next_steps_suggestion' (a list of 2-3 relevant follow-up questions or analysis tasks).") # Ensure AGENT_GENERATED_FILES_SUBDIR is globally defined
+    answer = dspy.OutputField(desc=f"A JSON string with 'explanation', 'plots' (list of strings relative to '{AGENT_GENERATED_FILES_SUBDIR.name}/'), 'files' (list of strings relative to '{AGENT_GENERATED_FILES_SUBDIR.name}/'), and 'next_steps_suggestion' (a list of 2-3 relevant follow-up questions or analysis tasks).") # Ensure AGENT_GENERATED_FILES_SUBDIR is globally defined
 
 class DataAnalysisAgentModule(dspy.Module): # Renamed to avoid conflict with smolagents.CodeAgent if it was an object
     """The main DSPy agent module for data analysis, using ReAct."""
@@ -317,8 +301,7 @@ class DataAnalysisAgentModule(dspy.Module): # Renamed to avoid conflict with smo
         super().__init__()
         self.react_agent = dspy.ReAct(
             DataAnalysisSignature,
-            tools=[PythonCodeTool(outputs_dir=outputs_dir, current_dataset_path=current_dataset_path),
-                   FinishTool()],
+            tools=[PythonCodeTool(outputs_dir=outputs_dir, current_dataset_path=current_dataset_path)],
             max_iters=max_iters
         )
 
@@ -1124,11 +1107,19 @@ class NiceGuiApp:
 
             else: # Indexed steps
                 for i in range(max_idx + 1):
+
+                    is_last_step = (i == max_idx)
+                    observation_for_check = str(trajectory_data.get(f'observation{i}') or trajectory_data.get(f'tool_output{i}', ''))
+                    is_failed_step = "is not in the tool's args" in observation_for_check or 'Execution error in finish' in observation_for_check
+
                     current_step_md_parts = [f"\n##### Step {i + 1}"]
                     thought_content = trajectory_data.get(f'thought_{i}') or trajectory_data.get(f'rationale_{i}')
                     action_name = trajectory_data.get(f'tool_name_{i}') or trajectory_data.get(f'action_{i}')
                     action_input_dict = trajectory_data.get(f'tool_args_{i}') or trajectory_data.get(f'action_input_{i}')
                     observation = trajectory_data.get(f'observation_{i}') or trajectory_data.get(f'tool_output_{i}')
+
+                    if is_last_step and is_failed_step:
+                        observation = None
 
                     if thought_content:
                         current_step_md_parts.append(f"**Thought:**\n```text\n{str(thought_content).strip()}\n```")
