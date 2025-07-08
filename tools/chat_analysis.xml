@@ -60,7 +60,7 @@
     <outputs>
         <data name="chat_history" format="json" label="${tool.name} -- chat history json on ${on_string} -- use to restore chat history next time"/>
         <collection name="generated_files" type="list" label="${tool.name} -- generated files">
-            <discover_datasets pattern="__name_and_ext__" directory="generated_files" />
+            <discover_datasets pattern="__name_and_ext__" directory="outputs_dir/generated_files" />
         </collection>
     </outputs>
     <tests>
