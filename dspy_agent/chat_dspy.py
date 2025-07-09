@@ -1252,17 +1252,6 @@ class NiceGuiApp:
         await self.handle_user_input(eda_user_query)
 
 
-    def _on_model_change(self, new_model_id: str):
-        self.selected_model_id   = new_model_id
-        self.selected_model_name = self.MODEL_OPTIONS_SELECT.get(new_model_id, new_model_id)
-        ui.notify(
-            f"Model set to: {self.selected_model_name}",
-            type='info',
-            position='top-right',
-            timeout=2000
-        )
-        self.try_initialize_agent()
-
     def build_ui(self):
         ui.add_head_html("""
             <style>
@@ -1289,20 +1278,6 @@ class NiceGuiApp:
                     .props('flat round dense color=grey-7').tooltip("Close Sidebar")
             
             self.sidebar_api_status_label = ui.label("Agent: Unknown").classes("mb-3 text-xs p-1 rounded")
-            # self.model_select_element = ui.select(self.MODEL_OPTIONS_SELECT, label="LLM Model", value=self.selected_model_id, on_change=self.handle_model_change).props("outlined dense emit-value map-options").classes("w-full mb-3")
-
-            # self.model_select_element = (
-            #     ui.select(
-            #         self.MODEL_OPTIONS_SELECT,
-            #         label='Model',
-            #         value=self.selected_model_id,
-            #         on_change=self.handle_model_change,
-            #     )
-            #     .props('outlined dense map-options emit-value')
-            #     .classes('w-full mb-6')
-            # )
-
-            model_items = [(k, v) for k, v in self.MODEL_OPTIONS_SELECT.items()]
 
             self.model_select_element = ui.select(
                 self.MODEL_OPTIONS_SELECT,      # dict of value→label
