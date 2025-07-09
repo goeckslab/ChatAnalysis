@@ -282,7 +282,16 @@ class DataAnalysisSignature(dspy.Signature):
     you MUST use the special 'finish' action.
     The 'finish' action takes NO arguments.
     Here is a literal example of the final step:
-    Thought: I have collected all the results and I am ready to provide the final answer. 'answer={"explanation": "The analysis is complete.", "plots": ["generated_files/plot1.png"], "files": ["generated_files/data.csv"], "next_steps_suggestion": ["Consider further analysis."]}'
+    Thought: I have collected all the results and I am ready to provide the final answer. Provide the final answer in the though and an example of final answer is 'answer = {
+        "explanation": "The analysis revealed that...",
+        "plots": ["generated_files/plot_a8d3.png", "generated_files/plot_b2c4.png"],
+        "files": ["generated_files/data_summary.csv", "generated_files/model_weights.pth"],
+        "next_steps_suggestion": [
+            "Would you like to visualize the data further?",
+            "Do you want to perform any additional analyses?",
+            "Shall we save this analysis for future reference?"
+        ]
+    }'
     Action: finish()
 
     Finally, provide a comprehensive answer to the user in JSON format. This JSON MUST include:
@@ -480,7 +489,6 @@ class NiceGuiApp:
         "groq/mixtral-8x7b-32768": "Groq (Mixtral-8x7B)",
         "groq/gemma-7b-it": "Groq (Gemma-7B-IT)"
     }
-
 
     def __init__(self, user_id: str, cli_args_ns: argparse.Namespace):
         self.user_id = user_id
@@ -1109,17 +1117,18 @@ class NiceGuiApp:
                 for i in range(max_idx + 1):
 
                     is_last_step = (i == max_idx)
-                    observation_for_check = str(trajectory_data.get(f'observation{i}') or trajectory_data.get(f'tool_output{i}', ''))
-                    is_failed_step = "is not in the tool's args" in observation_for_check or 'Execution error in finish' in observation_for_check
+                    observation_for_check = str(trajectory_data.get(f'observation_{i}') or trajectory_data.get(f'tool_output_{i}', ''))
+                    is_failed_step = "is not in the tool's args" in observation_for_check or "Execution error in finish" in observation_for_check
+
 
                     current_step_md_parts = [f"\n##### Step {i + 1}"]
                     thought_content = trajectory_data.get(f'thought_{i}') or trajectory_data.get(f'rationale_{i}')
                     action_name = trajectory_data.get(f'tool_name_{i}') or trajectory_data.get(f'action_{i}')
                     action_input_dict = trajectory_data.get(f'tool_args_{i}') or trajectory_data.get(f'action_input_{i}')
                     observation = trajectory_data.get(f'observation_{i}') or trajectory_data.get(f'tool_output_{i}')
-
+                    
                     if is_last_step and is_failed_step:
-                        observation = None
+                        observation = None # Don't show observation for failed last step, it might be an error message
 
                     if thought_content:
                         current_step_md_parts.append(f"**Thought:**\n```text\n{str(thought_content).strip()}\n```")
@@ -1269,8 +1278,16 @@ class NiceGuiApp:
                     .props('flat round dense color=grey-7').tooltip("Close Sidebar")
             
             self.sidebar_api_status_label = ui.label("Agent: Unknown").classes("mb-3 text-xs p-1 rounded")
-            self.model_select_element = ui.select(self.MODEL_OPTIONS_SELECT, label="LLM Model", value=self.selected_model_id, on_change=self.handle_model_change).props("outlined dense emit-value map-options").classes("w-full mb-3")
-            
+
+            self.model_select_element = ui.select(
+                self.MODEL_OPTIONS_SELECT,      # dict of value→label
+                label='LLM Model',
+                value=self.selected_model_id,
+                on_change=self.handle_model_change
+            ).props('outlined dense') \
+            .classes('w-full mb-3')
+
+
             with ui.expansion("API Keys", icon="key", value=False).classes("w-full mb-3 text-sm"):
                 self.openai_key_input = ui.input(label="OpenAI API Key", password=True, value=self.openai_api_key, on_change=lambda e: setattr(self, 'openai_api_key', e.value)).props("dense outlined clearable")
                 ui.button("Save OpenAI", on_click=self.save_openai_key, icon="save").classes("w-full mt-1").props("color=indigo-6 dense size=sm")
@@ -1911,4 +1928,4 @@ if __name__ in {"__main__", "__mp_main__"}:
     ui.run(title="Galaxy Chat Analysis (DSPy)", storage_secret=str(uuid.uuid4()),
            port=9090, reload=True, # Check env var for reload
            uvicorn_logging_level='info',
-           favicon=SCRIPT_PATH / "favicon.ico",)
+           favicon=SCRIPT_PATH / "static" / "favicon.ico",)
