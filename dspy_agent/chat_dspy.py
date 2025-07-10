@@ -88,6 +88,19 @@ DEFAULT_outputs_dir = Path("outputs_dir")
 AGENT_GENERATED_FILES_SUBDIR = Path("generated_files") 
 DEFAULT_CHAT_HISTORY_FILE = Path("chat_history_nicegui_dspy.json")
 DEFAULT_DSPY_EXAMPLES_FILE = SCRIPT_PATH / Path("examples.json")
+MODEL_OPTIONS_SELECT = {
+    "openai/gpt-4o": "OpenAI (GPT-4o)",
+    # "openai/gpt-4.1": "OpenAI (GPT-4.1)",
+    # "openai/gpt-4.1-mini": "OpenAI (GPT-4.1-mini)",
+    # "openai/gpt-4o-mini": "OpenAI (GPT-4o-mini)",
+    # "openai/gpt-4-turbo": "OpenAI (GPT-4-Turbo)", 
+    # "openai/gpt-3.5-turbo": "OpenAI (GPT-3.5-Turbo)",
+    # "gemini/gemini-2.5-pro": "Google (Gemini 2.5 Pro)",
+    "gemini/gemini-2.5-flash": "Google (Gemini 2.5 Flash)",
+    # "groq/llama3-70b-8192": "Groq (Llama3-70B)",
+    # "groq/mixtral-8x7b-32768": "Groq (Mixtral-8x7B)",
+    # "groq/gemma-7b-it": "Groq (Gemma-7B-IT)",
+}
 MODEL_PRICING = {
     "openai/gpt-4o": {
         "prompt":        2.50  / 1_000_000,
@@ -137,9 +150,9 @@ class PythonCodeTool(dspy.Tool):
     output_variable = "tool_output"
     description = (
         "Executes python code for data analysis. "
-        "The code MUST save any generated files (plots, CSVs) into the 'outputs_dir / \"generated_file\"' directory (e.g., outputs_dir / \"generated_file/plot.png\"). "
+        "The code MUST save any generated files (plots, CSVs) into the 'outputs_dir / \"generated_files\"' directory (e.g., outputs_dir / \"generated_files/plot.png\"). "
         "The path to the primary dataset being analyzed is available as 'dataset_path_in_tool_code'. "
-        "Print statements will be captured as output. The code MUST print the relative path from 'outputs_dir' for any saved file (e.g., print 'generated_file/my_plot.png')."
+        "Print statements will be captured as output. The code MUST print the relative path from 'outputs_dir' for any saved file (e.g., print 'generated_files/my_plot.png')."
     )
 
     def __init__(self, outputs_dir: Path, current_dataset_path: Path | None):
@@ -430,77 +443,91 @@ def validation_metric(example: dspy.Example, prediction: dspy.Prediction, trace=
         return False
 
 
-@lru_cache(maxsize=2)
-def get_compiled_dspy_agent(
-    api_key: str,
-    model_id_with_prefix: str,
-    outputs_dir: Path,
-    current_dataset_path: Path | None,
-    examples_file_path: Path,
-    compile_agent: bool = True
-):
-    # 1) configure LM
-    # In get_compiled_dspy_agent
-    logging.info(f"Configuring DSPy LM with model ID: {model_id_with_prefix} and API key {api_key}.")
-    lm = dspy.LM(model_id_with_prefix, api_key=api_key)
-    dspy.settings.configure(lm=lm, trace=None) 
-    logging.info(f"DSPy LM configured successfully for {model_id_with_prefix}. Tracing set to None (in-memory if used by module).")
+COMPILED_AGENTS_DIR = Path(__file__).resolve().parent / "compiled_agents"
 
-    # 2) cache next to the script
-    script_dir = Path(__file__).resolve().parent
-    cache_path = script_dir / "compiled_dspy_agent.pkl"
+@lru_cache(maxsize=5)
+def load_precompiled_agent(model_id_with_prefix: str):
+    """Loads a pre-compiled agent from a .pkl file."""
+    provider = model_id_with_prefix.split('/')[0]
+    model_name_sanitized = model_id_with_prefix.split('/')[-1].replace('.', '_')
+    
+    agent_filename = f"agent_{provider}_{model_name_sanitized}.pkl"
+    agent_path = COMPILED_AGENTS_DIR / agent_filename
 
-    # 3) try loading
-    if compile_agent and cache_path.exists():
-        try:
-            with open(cache_path, "rb") as f:
-                agent = pickle.load(f)
-            logging.info("Loaded compiled DSPy agent from cache.")
-            return agent
-        except Exception as e:
-            logging.warning(f"Failed to load cached agent ({cache_path}): {e}. Recompiling.")
+    if not agent_path.exists():
+        logging.error(f"Pre-compiled agent file not found: {agent_path}")
+        logging.error(f"Please run 'python build_agents.py' to create it first.")
+        return None
+        
+    try:
+        with open(agent_path, "rb") as f:
+            agent = pickle.load(f)
+        logging.info(f"Successfully loaded pre-compiled agent from {agent_path}")
+        return agent
+    except Exception as e:
+        logging.error(f"Failed to load agent from {agent_path}: {e}")
+        return None
 
-    # 4) build uncompiled
-    agent = DataAnalysisAgentModule(outputs_dir=outputs_dir, current_dataset_path=current_dataset_path)
 
-    # 5) compile + pickle
-    if compile_agent:
-        examples = load_examples_from_json(examples_file_path)
-        if examples:
-            teleprompter = BootstrapFewShot(
-                metric=validation_metric,
-                max_bootstrapped_demos=2,
-                max_labeled_demos=min(len(examples), 4),
-            )
-            try:
-                compiled = teleprompter.compile(agent, trainset=examples)
-                # use cloudpickle here
-                with open(cache_path, "wb") as f:
-                    pickle.dump(compiled, f)
-                logging.info(f"Compiled DSPy agent and wrote to {cache_path}")
-                return compiled
-            except Exception as e:
-                logging.warning(f"Compilation failed, using uncompiled agent: {e}")
+# @lru_cache(maxsize=5)
+# def get_compiled_dspy_agent(
+#     api_key: str,
+#     model_id_with_prefix: str,
+#     outputs_dir: Path,
+#     current_dataset_path: Path | None,
+#     examples_file_path: Path,
+#     compile_agent: bool = True
+# ):
+#     # 1) configure LM
+#     # In get_compiled_dspy_agent
+#     logging.info(f"Configuring DSPy LM with model ID: {model_id_with_prefix} and API key {api_key}.")
+#     lm = dspy.LM(model_id_with_prefix, api_key=api_key)
+#     dspy.settings.configure(lm=lm, trace=None) 
+#     logging.info(f"DSPy LM configured successfully for {model_id_with_prefix}. Tracing set to None (in-memory if used by module).")
 
-    # 6) fallback
-    return agent
+#     # 2) cache next to the script
+#     script_dir = Path(__file__).resolve().parent
+#     cache_path = script_dir / "compiled_dspy_agent.pkl"
+
+#     # 3) try loading
+#     if compile_agent and cache_path.exists():
+#         try:
+#             with open(cache_path, "rb") as f:
+#                 agent = pickle.load(f)
+#             logging.info("Loaded compiled DSPy agent from cache.")
+#             return agent
+#         except Exception as e:
+#             logging.warning(f"Failed to load cached agent ({cache_path}): {e}. Recompiling.")
+
+#     # 4) build uncompiled
+#     agent = DataAnalysisAgentModule(outputs_dir=outputs_dir, current_dataset_path=current_dataset_path)
+
+#     # 5) compile + pickle
+#     if compile_agent:
+#         examples = load_examples_from_json(examples_file_path)
+#         if examples:
+#             teleprompter = BootstrapFewShot(
+#                 metric=validation_metric,
+#                 max_bootstrapped_demos=2,
+#                 max_labeled_demos=min(len(examples), 4),
+#             )
+#             try:
+#                 compiled = teleprompter.compile(agent, trainset=examples)
+#                 # use cloudpickle here
+#                 with open(cache_path, "wb") as f:
+#                     pickle.dump(compiled, f)
+#                 logging.info(f"Compiled DSPy agent and wrote to {cache_path}")
+#                 return compiled
+#             except Exception as e:
+#                 logging.warning(f"Compilation failed, using uncompiled agent: {e}")
+
+#     # 6) fallback
+#     return agent
 
 
 
 class NiceGuiApp:
-    MODEL_OPTIONS_SELECT = {
-        "openai/gpt-4o": "OpenAI (GPT-4o)",
-        "openai/gpt-4.1": "OpenAI (GPT-4.1)",
-        "openai/gpt-4.1-mini": "OpenAI (GPT-4.1-mini)",
-        "openai/gpt-4o-mini": "OpenAI (GPT-4o-mini)",
-        "openai/gpt-4-turbo": "OpenAI (GPT-4-Turbo)", 
-        "openai/gpt-3.5-turbo": "OpenAI (GPT-3.5-Turbo)",
-        # "gemini/gemini-2.5-pro": "Google (Gemini 2.5 Pro)",
-        "gemini/gemini-2.5-flash": "Google (Gemini 2.5 Flash)",
-        "groq/llama3-70b-8192": "Groq (Llama3-70B)",
-        "groq/mixtral-8x7b-32768": "Groq (Mixtral-8x7B)",
-        "groq/gemma-7b-it": "Groq (Gemma-7B-IT)",
-    }
+    
 
     def __init__(self, user_id: str, cli_args_ns: argparse.Namespace):
         self.user_id = user_id
@@ -526,7 +553,7 @@ class NiceGuiApp:
         self.groq_api_key = ""
         self.google_api_key = ""
         self.selected_model_id = "openai/gpt-4o" # Default model
-        self.selected_model_name = self.MODEL_OPTIONS_SELECT.get(self.selected_model_id, self.selected_model_id)
+        self.selected_model_name = MODEL_OPTIONS_SELECT.get(self.selected_model_id, self.selected_model_id)
         
         self.selected_message_for_details_idx: int | None = None
         self.selected_bookmark_for_details: dict | None = None
@@ -669,99 +696,152 @@ class NiceGuiApp:
         return self.openai_api_key
 
 
+    # def try_initialize_agent(self):
+    #     """Initializes or re-initializes the DSPy agent with enhanced error handling, using global logging."""
+    #     status_message = "Agent: Unknown"
+    #     status_color = 'grey'
+    #     agent_outputs_dir = self.outputs_dir
+
+    #     # Using global logging
+    #     logging.info(f"Attempting to initialize DSPy agent with model: {self.selected_model_id}")
+
+    #     # Get the appropriate API key
+    #     final_api_key = self._get_api_key_for_model()
+    #     dspy_model_id_for_config = self.selected_model_id
+
+    #     if not dspy_model_id_for_config:
+    #         self.dspy_agent = None
+    #         status_message = "Agent Not Ready: No model selected. Please select a model in the sidebar."
+    #         status_color = 'red'
+    #         ui.notify(status_message, type='negative', multi_line=True, classes='w-96', auto_close=False, position='center')
+    #         logging.error(status_message) # Using global logging
+    #     elif not final_api_key:
+    #         self.dspy_agent = None
+    #         provider_name = "the selected provider"
+    #         if dspy_model_id_for_config.startswith("openai/"):
+    #             provider_name = "OpenAI"
+    #         elif dspy_model_id_for_config.startswith("groq/"):
+    #             provider_name = "Groq"
+    #         elif dspy_model_id_for_config.startswith("gemini/"):
+    #             provider_name = "Google Gemini"
+    #         status_message = f"Agent Not Ready: API Key for {provider_name} is missing. Please configure it in the sidebar."
+    #         status_color = 'red'
+    #         ui.notify(status_message, type='negative', multi_line=True, classes='w-96', auto_close=False, position='center')
+    #         logging.error(status_message) # Using global logging
+    #     else:
+    #         logging.debug(f"API Key present for {dspy_model_id_for_config}. Proceeding with DSPy agent initialization.") # Using global logging
+    #         try:
+    #             logging.info("Compiling DSPy agent with provided API key and model ID...") # Using global logging
+    #             self.dspy_agent = get_compiled_dspy_agent(
+    #                 api_key=final_api_key,
+    #                 model_id_with_prefix=dspy_model_id_for_config,
+    #                 outputs_dir=agent_outputs_dir,
+    #                 current_dataset_path=self.current_dataset_file_path,
+    #                 examples_file_path=self.dspy_examples_file,
+    #                 compile_agent=self.compile_dspy_agent_on_startup
+    #             )
+                
+    #             if not self.dspy_agent: 
+    #                 raise RuntimeError("DSPy agent initialization returned None unexpectedly.")
+
+    #             status_message = f"Agent Ready ({self.selected_model_name})"
+    #             status_color = 'green'
+                
+    #             if self.compile_dspy_agent_on_startup and not load_examples_from_json(self.dspy_examples_file):
+    #                 status_message += " (Uncompiled - No Examples)"
+    #                 status_color = 'orange'
+    #             elif not self.compile_dspy_agent_on_startup:
+    #                 status_message += " (Uncompiled - By Setting)"
+    #                 status_color = 'orange'
+                
+    #             ui.notify(status_message, type='positive' if status_color == 'green' else 'warning', timeout=3500, position='top')
+    #             logging.info(status_message) # Using global logging
+
+    #         except Exception as e:
+    #             self.dspy_agent = None
+    #             # Using global logging
+    #             logging.error(f"DSPy Agent initialization/compilation failed for model '{dspy_model_id_for_config}': {e}", exc_info=True) 
+                
+    #             error_str = str(e).lower()
+    #             auth_keywords = ["authentication", "api key", "invalid key", "permission denied", "unauthorized", "401"]
+    #             model_not_found_keywords = ["model_not_found", "does not exist", "404", "no model", "could not find model"]
+    #             connection_error_keywords = ["connection", "timeout", "refused", "dns resolution"]
+                
+    #             if any(k in error_str for k in auth_keywords):
+    #                 status_message = f"Agent Error: API Key for {self.selected_model_name} seems invalid or lacks permissions."
+    #             elif any(k in error_str for k in model_not_found_keywords):
+    #                 status_message = f"Agent Error: Model '{self.selected_model_name}' not found or not accessible."
+    #             elif any(k in error_str for k in connection_error_keywords):
+    #                 status_message = f"Agent Error: Network issue connecting to {self.selected_model_name} provider. Check connection/VPN."
+    #             elif "rate limit" in error_str:
+    #                 status_message = f"Agent Error: Rate limit exceeded for {self.selected_model_name}. Please try again later."
+    #             else:
+    #                 status_message = f"Agent Error: Failed to initialize {self.selected_model_name}. Check server console for details."
+                
+    #             status_color = 'red'
+    #             detailed_error_msg = f"{status_message} Details: {str(e)[:150]}..."
+    #             ui.notify(detailed_error_msg, type='negative', multi_line=True, classes='w-96 whitespace-pre-wrap', auto_close=False, position='center', close_button='OK')
+    #             logging.error(detailed_error_msg) # Using global logging
+
+    #     if self.sidebar_api_status_label:
+    #         self.sidebar_api_status_label.set_text(status_message)
+    #         self.sidebar_api_status_label.style(f'color: {status_color}; font-weight: bold; font-size: 0.8rem;')
+    #         self.sidebar_api_status_label.tooltip(status_message if len(status_message) > 40 else '')
+        
+    #     return self.dspy_agent is not None
+
     def try_initialize_agent(self):
-        """Initializes or re-initializes the DSPy agent with enhanced error handling, using global logging."""
+        """
+        Initializes the agent by loading it from a file and configuring it at runtime.
+        """
         status_message = "Agent: Unknown"
         status_color = 'grey'
-        agent_outputs_dir = self.outputs_dir
+        
+        logging.info(f"Attempting to initialize agent for model: {self.selected_model_id}")
 
-        # Using global logging
-        logging.info(f"Attempting to initialize DSPy agent with model: {self.selected_model_id}")
-
-        # Get the appropriate API key
-        final_api_key = self._get_api_key_for_model()
-        dspy_model_id_for_config = self.selected_model_id
-
-        if not dspy_model_id_for_config:
-            self.dspy_agent = None
-            status_message = "Agent Not Ready: No model selected. Please select a model in the sidebar."
+        # 1. Load the pre-compiled agent object using the new function
+        self.dspy_agent = load_precompiled_agent(self.selected_model_id)
+        
+        if not self.dspy_agent:
+            status_message = f"Agent for {self.selected_model_name} not found. Please compile it first."
             status_color = 'red'
-            ui.notify(status_message, type='negative', multi_line=True, classes='w-96', auto_close=False, position='center')
-            logging.error(status_message) # Using global logging
-        elif not final_api_key:
-            self.dspy_agent = None
-            provider_name = "the selected provider"
-            if dspy_model_id_for_config.startswith("openai/"):
-                provider_name = "OpenAI"
-            elif dspy_model_id_for_config.startswith("groq/"):
-                provider_name = "Groq"
-            elif dspy_model_id_for_config.startswith("gemini/"):
-                provider_name = "Google Gemini"
-            status_message = f"Agent Not Ready: API Key for {provider_name} is missing. Please configure it in the sidebar."
-            status_color = 'red'
-            ui.notify(status_message, type='negative', multi_line=True, classes='w-96', auto_close=False, position='center')
-            logging.error(status_message) # Using global logging
-        else:
-            logging.debug(f"API Key present for {dspy_model_id_for_config}. Proceeding with DSPy agent initialization.") # Using global logging
-            try:
-                logging.info("Compiling DSPy agent with provided API key and model ID...") # Using global logging
-                self.dspy_agent = get_compiled_dspy_agent(
-                    api_key=final_api_key,
-                    model_id_with_prefix=dspy_model_id_for_config,
-                    outputs_dir=agent_outputs_dir,
-                    current_dataset_path=self.current_dataset_file_path,
-                    examples_file_path=self.dspy_examples_file,
-                    compile_agent=self.compile_dspy_agent_on_startup
-                )
-                
-                if not self.dspy_agent: 
-                    raise RuntimeError("DSPy agent initialization returned None unexpectedly.")
+            ui.notify(status_message, type='negative', multi_line=True)
+            # Update UI label if it exists
+            if self.sidebar_api_status_label:
+                self.sidebar_api_status_label.set_text(status_message)
+                self.sidebar_api_status_label.style(f'color: {status_color};')
+            return False
 
-                status_message = f"Agent Ready ({self.selected_model_name})"
-                status_color = 'green'
-                
-                if self.compile_dspy_agent_on_startup and not load_examples_from_json(self.dspy_examples_file):
-                    status_message += " (Uncompiled - No Examples)"
-                    status_color = 'orange'
-                elif not self.compile_dspy_agent_on_startup:
-                    status_message += " (Uncompiled - By Setting)"
-                    status_color = 'orange'
-                
-                ui.notify(status_message, type='positive' if status_color == 'green' else 'warning', timeout=3500, position='top')
-                logging.info(status_message) # Using global logging
+        # 2. Configure the Language Model at runtime with the user's key
+        try:
+            final_api_key = self._get_api_key_for_model()
+            lm = dspy.LM(self.selected_model_id, api_key=final_api_key)
+            dspy.settings.configure(lm=lm)
+            logging.info("Runtime DSPy LM configured successfully.")
+        except Exception as e:
+            status_message = f"Error configuring API for {self.selected_model_name}."
+            logging.error(f"Failed to configure runtime LM: {e}", exc_info=True)
+            ui.notify(f"{status_message} Check keys. Details: {e}", type='negative', multi_line=True)
+            return False
 
-            except Exception as e:
-                self.dspy_agent = None
-                # Using global logging
-                logging.error(f"DSPy Agent initialization/compilation failed for model '{dspy_model_id_for_config}': {e}", exc_info=True) 
-                
-                error_str = str(e).lower()
-                auth_keywords = ["authentication", "api key", "invalid key", "permission denied", "unauthorized", "401"]
-                model_not_found_keywords = ["model_not_found", "does not exist", "404", "no model", "could not find model"]
-                connection_error_keywords = ["connection", "timeout", "refused", "dns resolution"]
-                
-                if any(k in error_str for k in auth_keywords):
-                    status_message = f"Agent Error: API Key for {self.selected_model_name} seems invalid or lacks permissions."
-                elif any(k in error_str for k in model_not_found_keywords):
-                    status_message = f"Agent Error: Model '{self.selected_model_name}' not found or not accessible."
-                elif any(k in error_str for k in connection_error_keywords):
-                    status_message = f"Agent Error: Network issue connecting to {self.selected_model_name} provider. Check connection/VPN."
-                elif "rate limit" in error_str:
-                    status_message = f"Agent Error: Rate limit exceeded for {self.selected_model_name}. Please try again later."
-                else:
-                    status_message = f"Agent Error: Failed to initialize {self.selected_model_name}. Check server console for details."
-                
-                status_color = 'red'
-                detailed_error_msg = f"{status_message} Details: {str(e)[:150]}..."
-                ui.notify(detailed_error_msg, type='negative', multi_line=True, classes='w-96 whitespace-pre-wrap', auto_close=False, position='center', close_button='OK')
-                logging.error(detailed_error_msg) # Using global logging
+        # 3. CRITICAL: Update the agent's tools with the current runtime paths
+        if hasattr(self.dspy_agent, 'react_agent') and self.dspy_agent.react_agent.tools:
+            for tool_instance in self.dspy_agent.react_agent.tools:
+                if isinstance(tool_instance, PythonCodeTool):
+                    tool_instance.current_dataset_path = self.current_dataset_file_path
+                    tool_instance.outputs_dir = self.outputs_dir
+                    logging.info(f"Updated runtime tool paths. Dataset: {self.current_dataset_file_path}")
 
+        # 4. Update UI status to show success
+        status_message = f"Agent Ready ({self.selected_model_name})"
+        status_color = 'green'
         if self.sidebar_api_status_label:
             self.sidebar_api_status_label.set_text(status_message)
-            self.sidebar_api_status_label.style(f'color: {status_color}; font-weight: bold; font-size: 0.8rem;')
-            self.sidebar_api_status_label.tooltip(status_message if len(status_message) > 40 else '')
-        
-        return self.dspy_agent is not None
+            self.sidebar_api_status_label.style(f'color: {status_color}; font-weight: bold;')
+            
+        ui.notify(status_message, type='positive', timeout=2500)
+        return True
+
 
 
     async def handle_user_input(self, user_question: str | None):
@@ -977,7 +1057,7 @@ class NiceGuiApp:
                     logging.error(f"Agent returned absolute path '{p_str}' outside of outputs_dir '{outputs_dir_base}'. Cannot process.")
                     return None # Or handle as error
 
-            # Case 2: Agent returns path already relative to AGENT_GENERATED_FILES_SUBDIR (e.g., "generated_file/plot.png")
+            # Case 2: Agent returns path already relative to AGENT_GENERATED_FILES_SUBDIR (e.g., "generated_files/plot.png")
             if path_obj.parts and path_obj.parts[0] == agent_subdir.name:
                 return str(path_obj) # Already correct format
 
@@ -988,7 +1068,7 @@ class NiceGuiApp:
                 # Prepend the agent's subdirectory
                 return str(agent_subdir / path_obj.name)
             
-            # Case 4: Agent returns a path like "subdir_within_generated_file/plot.png"
+            # Case 4: Agent returns a path like "subdir_within_generated_files/plot.png"
             # This is fine if AGENT_GENERATED_FILES_SUBDIR is the root for such paths.
             # For simplicity, we assume agent places files directly in AGENT_GENERATED_FILES_SUBDIR
             # or prints paths relative to it.
@@ -1086,7 +1166,7 @@ class NiceGuiApp:
             return "*No detailed intermediate steps retrieved or trajectory_data is empty.*"
 
         if isinstance(trajectory_data, str):
-            return f"#### Agent's Reasoning Log\n```text\n{trajectory_data}\n```"
+            return f"#### Agent's Reasoning Log by {self.selected_model_id}\n```text\n{trajectory_data}\n```"
 
         # Handle the new dictionary-based trajectory from ReAct
         if isinstance(trajectory_data, dict):
@@ -1129,7 +1209,7 @@ class NiceGuiApp:
 
                  if observation is not None:
                      obs_str = str(observation)
-                     obs_str = (obs_str[:1500] + "\n... (observation truncated)") if len(obs_str) > 1500 else obs_str
+                     obs_str = (obs_str[:] + "\n") if len(obs_str) > 1500 else obs_str
                      current_step_md_parts.append(f"**Observation/Tool Output:**\n```text\n{obs_str.strip()}\n```")
                  
                  if len(current_step_md_parts) > 1:
@@ -1169,7 +1249,7 @@ class NiceGuiApp:
 
                     if observation is not None:
                         obs_str = str(observation)
-                        obs_str = (obs_str[:1500] + "\n... (observation truncated)") if len(obs_str) > 1500 else obs_str
+                        obs_str = (obs_str[:] + "\n") if len(obs_str) > 1500 else obs_str
                         current_step_md_parts.append(f"**Observation/Tool Output:**\n```text\n{obs_str.strip()}\n```")
                     
                     if len(current_step_md_parts) > 1:
@@ -1239,7 +1319,7 @@ class NiceGuiApp:
 
     def handle_model_change(self, e):
         self.selected_model_id = e.value
-        self.selected_model_name = self.MODEL_OPTIONS_SELECT.get(self.selected_model_id, self.selected_model_id)
+        self.selected_model_name = MODEL_OPTIONS_SELECT.get(self.selected_model_id, self.selected_model_id)
         ui.notify(f"Model set to: {self.selected_model_name}", type='info', position='top-right', timeout=2000)
         self.try_initialize_agent() # Re-initialize/re-compile agent
 
@@ -1310,7 +1390,7 @@ class NiceGuiApp:
             self.sidebar_api_status_label = ui.label("Agent: Unknown").classes("mb-3 text-xs p-1 rounded")
 
             self.model_select_element = ui.select(
-                self.MODEL_OPTIONS_SELECT,      # dict of value→label
+                MODEL_OPTIONS_SELECT,      # dict of value→label
                 label='LLM Model',
                 value=self.selected_model_id,
                 on_change=self.handle_model_change
