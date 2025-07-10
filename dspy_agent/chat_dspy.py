@@ -83,6 +83,7 @@ logging.info("DSPy imported successfully.")
 SCRIPT_PATH = Path(__file__).resolve().parent
 OPENAI_API_KEY_FILE = Path("user_config_openai.key")
 GROQ_API_KEY_FILE = Path("user_config_groq.key")
+GOOGLE_API_KEY_FILE = Path("user_config_google.key")
 DEFAULT_outputs_dir = Path("outputs_dir") 
 AGENT_GENERATED_FILES_SUBDIR = Path("generated_files") 
 DEFAULT_CHAT_HISTORY_FILE = Path("chat_history_nicegui_dspy.json")
@@ -103,6 +104,14 @@ MODEL_PRICING = {
         "cached_prompt": 0.10  / 1_000_000,
         "completion":    1.60  / 1_000_000,
     },
+    "gemini/gemini-2.5-pro": {
+        "prompt": 3.50 / 1_000_000, # Placeholder pricing
+        "completion": 10.50 / 1_000_000, # Placeholder pricing
+    },
+    "gemini/gemini-2.5-flash": {
+        "prompt": 0.35 / 1_000_000, # Placeholder pricing
+        "completion": 1.05 / 1_000_000, # Placeholder pricing
+    }
     
 }
 
@@ -432,6 +441,7 @@ def get_compiled_dspy_agent(
 ):
     # 1) configure LM
     # In get_compiled_dspy_agent
+    logging.info(f"Configuring DSPy LM with model ID: {model_id_with_prefix} and API key {api_key}.")
     lm = dspy.LM(model_id_with_prefix, api_key=api_key)
     dspy.settings.configure(lm=lm, trace=None) 
     logging.info(f"DSPy LM configured successfully for {model_id_with_prefix}. Tracing set to None (in-memory if used by module).")
@@ -485,9 +495,11 @@ class NiceGuiApp:
         "openai/gpt-4o-mini": "OpenAI (GPT-4o-mini)",
         "openai/gpt-4-turbo": "OpenAI (GPT-4-Turbo)", 
         "openai/gpt-3.5-turbo": "OpenAI (GPT-3.5-Turbo)",
+        # "gemini/gemini-2.5-pro": "Google (Gemini 2.5 Pro)",
+        "gemini/gemini-2.5-flash": "Google (Gemini 2.5 Flash)",
         "groq/llama3-70b-8192": "Groq (Llama3-70B)",
         "groq/mixtral-8x7b-32768": "Groq (Mixtral-8x7B)",
-        "groq/gemma-7b-it": "Groq (Gemma-7B-IT)"
+        "groq/gemma-7b-it": "Groq (Gemma-7B-IT)",
     }
 
     def __init__(self, user_id: str, cli_args_ns: argparse.Namespace):
@@ -512,6 +524,7 @@ class NiceGuiApp:
         
         self.openai_api_key = ""
         self.groq_api_key = ""
+        self.google_api_key = ""
         self.selected_model_id = "openai/gpt-4o" # Default model
         self.selected_model_name = self.MODEL_OPTIONS_SELECT.get(self.selected_model_id, self.selected_model_id)
         
@@ -565,6 +578,11 @@ class NiceGuiApp:
             cli_groq_key = load_key_from_specific_file(Path(cli_groq_path_str))
             if cli_groq_key: self.groq_api_key = cli_groq_key; save_key_to_specific_file(GROQ_API_KEY_FILE, cli_groq_key)
         if not self.groq_api_key: self.groq_api_key = load_key_from_specific_file(GROQ_API_KEY_FILE) or ""
+
+        if self.cli_args.cli_gemini_key_file_path:
+            cli_google_key = load_key_from_specific_file(Path(self.cli_args.cli_gemini_key_file_path))
+            if cli_google_key: self.google_api_key = cli_google_key; save_key_to_specific_file(GOOGLE_API_KEY_FILE, cli_google_key)
+        if not self.google_api_key: self.google_api_key = load_key_from_specific_file(GOOGLE_API_KEY_FILE) or ""
 
         if self.chat_history_file_path.exists():
             try:
@@ -645,6 +663,8 @@ class NiceGuiApp:
         """Determines which API key to use based on the selected model provider."""
         if self.selected_model_id.startswith("groq/"):
             return self.groq_api_key
+        elif self.selected_model_id.startswith("gemini/"):
+            return self.google_api_key
         # Default to OpenAI for "openai/" prefix or any other case
         return self.openai_api_key
 
@@ -675,6 +695,8 @@ class NiceGuiApp:
                 provider_name = "OpenAI"
             elif dspy_model_id_for_config.startswith("groq/"):
                 provider_name = "Groq"
+            elif dspy_model_id_for_config.startswith("gemini/"):
+                provider_name = "Google Gemini"
             status_message = f"Agent Not Ready: API Key for {provider_name} is missing. Please configure it in the sidebar."
             status_color = 'red'
             ui.notify(status_message, type='negative', multi_line=True, classes='w-96', auto_close=False, position='center')
@@ -1234,6 +1256,14 @@ class NiceGuiApp:
             save_key_to_specific_file(GROQ_API_KEY_FILE, self.groq_api_key)
             ui.notify("Groq Key " + ("saved." if self.groq_api_key else "cleared."), type='positive' if self.groq_api_key else 'info')
             self.try_initialize_agent()
+    
+    def save_google_key(self):
+        if self.google_key_input:
+            self.google_api_key = self.google_key_input.value or ""
+            # You might want to save this to a file as well for persistence
+            save_key_to_specific_file(GOOGLE_API_KEY_FILE, self.google_api_key)
+            ui.notify("Google Key " + ("saved." if self.google_api_key else "cleared."), type='positive' if self.google_api_key else 'info')
+            self.try_initialize_agent()
 
     async def run_eda_action(self):
         if not self.current_dataset_file_path:
@@ -1293,6 +1323,8 @@ class NiceGuiApp:
                 ui.button("Save OpenAI", on_click=self.save_openai_key, icon="save").classes("w-full mt-1").props("color=indigo-6 dense size=sm")
                 self.groq_key_input = ui.input(label="Groq API Key", password=True, value=self.groq_api_key, on_change=lambda e: setattr(self, 'groq_api_key', e.value)).props("dense outlined clearable mt-2")
                 ui.button("Save Groq", on_click=self.save_groq_key, icon="save").classes("w-full mt-1").props("color=indigo-6 dense size=sm")
+                self.google_key_input = ui.input(label="Google API Key", password=True, value=self.google_api_key, on_change=lambda e: setattr(self, 'google_api_key', e.value)).props("dense outlined clearable mt-2")
+                ui.button("Save Google", on_click=self.save_google_key, icon="save").classes("w-full mt-1").props("color=indigo-6 dense size=sm")
 
             ui.separator().classes("my-3")
             ui.label("Dataset").classes("text-md font-semibold mb-2 text-indigo-700")
@@ -1889,6 +1921,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     parser.add_argument("--user_id", nargs='?', default=f"user_{uuid.uuid4().hex[:6]}", help="User ID (defaults to a random ID).")
     parser.add_argument("--openai_key_file", dest="cli_openai_key_file_path", help="Path to OpenAI API key file.")
     parser.add_argument("--groq_key_file", dest="cli_groq_key_file_path", help="Path to Groq API key file.")
+    parser.add_argument("--gemini_key_file", dest="cli_gemini_key_file_path", help="Path to Gemini API key file.")
     parser.add_argument("--chat_history", dest="chat_history_path", default=str(DEFAULT_CHAT_HISTORY_FILE), help="Path to chat history JSON file.")
     parser.add_argument("--outputs_dir", dest="generate_file_path", default=str(DEFAULT_outputs_dir), help="Directory for generated files (plots, data).")
     parser.add_argument("--input_file", dest="input_file_path", help="Path to an initial dataset file to load.")
