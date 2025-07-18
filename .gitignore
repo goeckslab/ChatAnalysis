@@ -30,3 +30,4 @@ test*.py
 test*.xml
 dspy_agent.py
 !dspy_agent/static/*.png
+!examples.json
