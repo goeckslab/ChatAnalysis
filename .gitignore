@@ -21,7 +21,6 @@ groq_api_key.txt
 !test-data/*.html
 *.pdf
 generate_md_report.py
-*.md
 outputs/*
 outputs_dir/
 user_config_*
@@ -31,3 +30,7 @@ test*.xml
 dspy_agent.py
 !dspy_agent/static/*.png
 !examples.json
+evaluation_outputs/
+biomni_data/
+!dspy_agent/benchmarks/DA-Agent/data/datasets/csv/*.csv
+!dspy_agent/README.md
